@@ -1,0 +1,280 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =====================================================
+// USERS
+// =====================================================
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("OPERADOR") // DUENO | ADMIN | OPERADOR
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions      CashSession[]
+  operations    Operation[]
+  cashCounts    CashCount[]
+  dailyClosings DailyClosing[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// =====================================================
+// SETTINGS (key-value store)
+// =====================================================
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// =====================================================
+// CASH DENOMINATIONS
+// =====================================================
+model CashDenomination {
+  id        String   @id @default(cuid())
+  value     Int
+  label     String
+  type      String   @default("BILLETE")
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cash_denominations")
+}
+
+// =====================================================
+// OPERATION CATEGORIES
+// =====================================================
+model OperationCategory {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // INGRESO | EGRESO
+  description String?
+  color       String?
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  operations Operation[]
+
+  @@map("operation_categories")
+}
+
+// =====================================================
+// CASH SESSION (daily session / jornada)
+// =====================================================
+model CashSession {
+  id          String    @id @default(cuid())
+  date        String    // YYYY-MM-DD
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  initialCash Int       @default(0)
+  status      String    @default("ABIERTA") // ABIERTA | CERRADA
+  openedById  String
+  closedById  String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  openedBy   User         @relation(fields: [openedById], references: [id])
+  operations Operation[]
+  cashCounts CashCount[]
+  closing    DailyClosing?
+
+  @@unique([date])
+  @@map("cash_sessions")
+}
+
+// =====================================================
+// OPERATIONS
+// =====================================================
+model Operation {
+  id              String   @id @default(cuid())
+  sessionId       String
+  categoryId      String?
+  userId          String
+  type            String   // INGRESO | EGRESO
+  amount          Int      // value in COP
+  fee             Int      @default(0) // Ganancia / Tarifa cobrada por el corresponsal
+  receivedAmount  Int?     // money received from client
+  changeAmount    Int?     // change returned
+  netCashFlow     Int      // net cash box impact
+  description     String?
+  reference       String?
+  voucherNumber   String?
+  operationNumber String?
+  status          String   @default("COMPLETADA") // COMPLETADA | PENDIENTE | CANCELADA | ERROR
+  operatedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  session  CashSession        @relation(fields: [sessionId], references: [id])
+  category OperationCategory? @relation(fields: [categoryId], references: [id])
+  user     User               @relation(fields: [userId], references: [id])
+  voucher  Voucher?
+
+  @@map("operations")
+}
+
+// =====================================================
+// VOUCHERS
+// =====================================================
+model Voucher {
+  id              String   @id @default(cuid())
+  operationId     String   @unique
+  status          String   @default("REGISTRADO") // REGISTRADO | PENDIENTE | FALTA | REVISADO
+
+  qrRaw           String?
+  qrOperationNum  String?
+  qrReference     String?
+  qrTransactionId String?
+  qrAmount        Int?
+  qrDate          String?
+  qrTime          String?
+  qrType          String?
+  qrStatus        String?
+  qrEntity        String?
+  qrCommerce      String?
+  qrAuthCode      String?
+  qrExtra         String?
+  qrScanned       Boolean  @default(false)
+  qrScannedAt     DateTime?
+
+  ocrText         String?
+  ocrAmount       Int?
+  ocrDate         String?
+  ocrTime         String?
+  ocrReference    String?
+  ocrOperationNum String?
+  ocrStatus       String?
+  ocrEntity       String?
+  ocrType         String?
+  ocrCompleted    Boolean  @default(false)
+  ocrCompletedAt  DateTime?
+
+  validated        Boolean  @default(false)
+  validationStatus String?
+  validationNotes  String?
+
+  imagePath     String?
+  imageUrl      String?
+  imageSize     Int?
+  imageMimeType String?
+  imageSavedAt  DateTime?
+
+  scannedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  operation Operation @relation(fields: [operationId], references: [id])
+
+  @@map("vouchers")
+}
+
+// =====================================================
+// CASH COUNTS (Arqueos)
+// =====================================================
+model CashCount {
+  id           String   @id @default(cuid())
+  sessionId    String
+  userId       String
+  expectedCash Int
+  countedCash  Int
+  difference   Int
+  status       String   // CUADRADO | SOBRANTE | FALTANTE
+  notes        String?
+  countedAt    DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  session CashSession     @relation(fields: [sessionId], references: [id])
+  user    User            @relation(fields: [userId], references: [id])
+  details CashCountDetail[]
+
+  @@map("cash_counts")
+}
+
+// =====================================================
+// CASH COUNT DETAILS (denomination breakdown)
+// =====================================================
+model CashCountDetail {
+  id           String @id @default(cuid())
+  cashCountId  String
+  denomination Int
+  quantity     Int
+  subtotal     Int
+
+  cashCount CashCount @relation(fields: [cashCountId], references: [id])
+
+  @@map("cash_count_details")
+}
+
+// =====================================================
+// DAILY CLOSINGS
+// =====================================================
+model DailyClosing {
+  id                  String   @id @default(cuid())
+  sessionId           String   @unique
+  userId              String
+  date                String
+  initialCash         Int
+  totalIncome         Int
+  totalExpense        Int
+  totalFees           Int      @default(0) // Total ganancias acumuladas por comisiones
+  expectedCash        Int
+  countedCash         Int
+  difference          Int
+  status              String   // CUADRADO | SOBRANTE | FALTANTE
+  operationsCount     Int
+  vouchersCount       Int
+  pendingVouchers     Int
+  operationsNoVoucher Int
+  closedAt            DateTime @default(now())
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  session CashSession @relation(fields: [sessionId], references: [id])
+  user    User        @relation(fields: [userId], references: [id])
+
+  @@map("daily_closings")
+}
+
+// =====================================================
+// AUDIT LOGS
+// =====================================================
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userName  String?
+  action    String
+  entity    String
+  entityId  String?
+  oldValue  String?
+  newValue  String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="opt2_g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="opt2_g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="opt2_dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="opt2_shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0f172a" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#opt2_shadow)">
+    <!-- Node Top -->
+    <path d="M 256 70 L 376 140 L 326 170 L 256 130 L 186 170 L 136 140 Z" fill="url(#opt2_dark)"/>
+
+    <!-- Left Arm -->
+    <path d="M 126 158 L 176 188 L 176 324 L 126 354 L 76 324 L 76 188 Z" fill="url(#opt2_g1)"/>
+
+    <!-- Right Arm -->
+    <path d="M 386 158 L 436 188 L 436 324 L 386 354 L 336 324 L 336 188 Z" fill="url(#opt2_dark)"/>
+
+    <!-- Bottom Connector -->
+    <path d="M 256 442 L 186 402 L 236 372 L 256 384 L 276 372 L 326 402 Z" fill="url(#opt2_g2)"/>
+
+    <!-- Center Precision Hex Core -->
+    <polygon points="256,200 310,230 310,285 256,315 202,285 202,230" fill="url(#opt2_g1)"/>
+    <polygon points="256,220 288,238 288,272 256,290 224,272 224,238" fill="#ffffff" opacity="0.95"/>
+  </g>
+</svg>
