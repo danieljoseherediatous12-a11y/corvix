@@ -5,8 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Corvix',
   webDir: 'public',
   server: {
-    url: 'http://192.168.101.6:3000',
-    cleartext: true,
+    url: 'https://corvix-nine.vercel.app',
+    cleartext: false,
   },
   android: {
     allowMixedContent: true,

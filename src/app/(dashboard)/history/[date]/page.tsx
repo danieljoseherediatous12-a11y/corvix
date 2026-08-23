@@ -3,13 +3,125 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCOP } from '@/lib/calculations';
-import { ArrowLeft, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  QrCode,
+  Coins,
+  TrendingUp,
+  TrendingDown,
+  User,
+  Clock,
+  Printer,
+  Eye,
+  X,
+  CreditCard,
+  Building2,
+  DollarSign,
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
+  ShieldCheck,
+  Search,
+  Filter,
+} from 'lucide-react';
+
+interface VoucherData {
+  id: string;
+  status: string;
+  qrRaw?: string | null;
+  qrOperationNum?: string | null;
+  qrReference?: string | null;
+  qrTransactionId?: string | null;
+  qrAmount?: number | null;
+  qrDate?: string | null;
+  qrTime?: string | null;
+  qrType?: string | null;
+  qrEntity?: string | null;
+  qrCommerce?: string | null;
+  qrAuthCode?: string | null;
+  ocrText?: string | null;
+  ocrAmount?: number | null;
+  ocrReference?: string | null;
+  ocrEntity?: string | null;
+  imageUrl?: string | null;
+  imagePath?: string | null;
+  scannedAt?: string | null;
+}
+
+interface OperationItem {
+  id: string;
+  type: string;
+  amount: number;
+  fee?: number | null;
+  receivedAmount?: number | null;
+  changeAmount?: number | null;
+  netCashFlow: number;
+  description?: string | null;
+  reference?: string | null;
+  voucherNumber?: string | null;
+  operationNumber?: string | null;
+  status: string;
+  operatedAt: string;
+  category?: { name: string; icon?: string } | null;
+  user?: { name: string } | null;
+  voucher?: VoucherData | null;
+}
+
+interface CashCountDetail {
+  denomination: number;
+  quantity: number;
+  subtotal: number;
+}
+
+interface CashCountItem {
+  id: string;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  status: string;
+  notes?: string | null;
+  createdAt: string;
+  user?: { name: string } | null;
+  details: CashCountDetail[];
+}
+
+interface ClosingDetail {
+  id: string;
+  date: string;
+  status: string;
+  initialCash: number;
+  totalIncome: number;
+  totalExpense: number;
+  totalFees?: number | null;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  operationsCount: number;
+  vouchersCount: number;
+  pendingVouchers: number;
+  operationsNoVoucher: number;
+  closedAt: string;
+  notes?: string | null;
+  user: { id: string; name: string };
+  session?: {
+    id: string;
+    operations: OperationItem[];
+    cashCounts: CashCountItem[];
+  };
+}
 
 export default function HistoryDetailPage() {
   const { date } = useParams() as { date: string };
   const router = useRouter();
-  const [closing, setClosing] = useState<Record<string, unknown> | null>(null);
+  const [closing, setClosing] = useState<ClosingDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'OPERATIONS' | 'VOUCHERS' | 'ARQUEO'>('OPERATIONS');
+  const [filterType, setFilterType] = useState<'ALL' | 'INGRESO' | 'EGRESO' | 'WITH_VOUCHER'>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedVoucher, setSelectedVoucher] = useState<{ op: OperationItem; voucher: VoucherData } | null>(null);
 
   useEffect(() => {
     fetch(`/api/closings?date=${date}`)
@@ -17,117 +129,625 @@ export default function HistoryDetailPage() {
       .then((data) => {
         setClosing(data.closing);
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, [date]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
+      <div className="flex flex-col items-center justify-center min-h-[55vh] gap-3">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+        <p className="text-xs text-slate-500 font-medium">Cargando reporte histórico y vouchers...</p>
       </div>
     );
   }
 
   if (!closing) {
     return (
-      <div className="max-w-md mx-auto text-center py-16">
-        <p className="text-sm text-slate-500">No se encontró el cierre para esta fecha</p>
-        <button onClick={() => router.back()} className="mt-3 text-xs font-bold text-slate-900">Volver</button>
+      <div className="max-w-md mx-auto text-center py-20 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
+        <AlertTriangle size={48} className="mx-auto text-amber-500 mb-3" />
+        <h2 className="text-lg font-black text-slate-900">Jornada no encontrada</h2>
+        <p className="text-xs text-slate-500 mt-1">No se encontró un cierre registrado para la fecha {date}.</p>
+        <button
+          onClick={() => router.push('/history')}
+          className="mt-5 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition cursor-pointer"
+        >
+          Volver al Historial
+        </button>
       </div>
     );
   }
 
-  const c = closing as {
-    date: string;
-    status: string;
-    initialCash: number;
-    totalIncome: number;
-    totalExpense: number;
-    expectedCash: number;
-    countedCash: number;
-    difference: number;
-    operationsCount: number;
-    vouchersCount: number;
-    pendingVouchers: number;
-    operationsNoVoucher: number;
-    closedAt: string;
-    notes?: string;
-    user: { name: string };
-    session: { operations: Array<{ id: string; type: string; amount: number; netCashFlow: number; description?: string; operatedAt: string; category?: { name: string }; voucher?: { status: string } }> };
-  };
+  const operations = closing.session?.operations || [];
+  const cashCounts = closing.session?.cashCounts || [];
+  const latestArqueo = cashCounts.length > 0 ? cashCounts[0] : null;
 
-  const dateLabel = new Date(c.date + 'T12:00:00').toLocaleDateString('es-CO', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  // Filter operations
+  const filteredOps = operations.filter((op) => {
+    if (filterType === 'INGRESO' && op.type !== 'INGRESO') return false;
+    if (filterType === 'EGRESO' && op.type !== 'EGRESO') return false;
+    if (filterType === 'WITH_VOUCHER' && !op.voucher) return false;
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const matchCat = op.category?.name?.toLowerCase().includes(q);
+      const matchDesc = op.description?.toLowerCase().includes(q);
+      const matchRef = op.reference?.toLowerCase().includes(q);
+      const matchNum = op.operationNumber?.toLowerCase().includes(q);
+      const matchUser = op.user?.name?.toLowerCase().includes(q);
+      const matchVoucherRef = op.voucher?.qrReference?.toLowerCase().includes(q);
+      return matchCat || matchDesc || matchRef || matchNum || matchUser || matchVoucherRef;
+    }
+    return true;
+  });
+
+  const vouchersList = operations.filter((op) => op.voucher && op.voucher.id);
+
+  const isCuadrado = closing.status === 'CUADRADO';
+  const isSobrante = closing.status === 'SOBRANTE';
+  const dateLabel = new Date(closing.date + 'T12:00:00').toLocaleDateString('es-CO', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-20">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600">
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <h1 className="text-xl font-black text-slate-900 capitalize tracking-tight">{dateLabel}</h1>
-          <p className="text-xs text-slate-500">Estado de jornada: <strong>{c.status}</strong></p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 text-sm">
-        <div className="flex justify-between p-4">
-          <span className="text-slate-500">Efectivo Inicial</span>
-          <span className="font-bold text-slate-900">{formatCOP(c.initialCash)}</span>
-        </div>
-        <div className="flex justify-between p-4">
-          <span className="text-slate-500">Ingresos</span>
-          <span className="font-bold text-emerald-700">+{formatCOP(c.totalIncome)}</span>
-        </div>
-        <div className="flex justify-between p-4">
-          <span className="text-slate-500">Egresos</span>
-          <span className="font-bold text-rose-700">-{formatCOP(c.totalExpense)}</span>
-        </div>
-        <div className="flex justify-between p-4 bg-slate-50 font-bold">
-          <span className="text-slate-900">Saldo Esperado</span>
-          <span className="font-black text-slate-900">{formatCOP(c.expectedCash)}</span>
-        </div>
-        <div className="flex justify-between p-4">
-          <span className="text-slate-500">Efectivo Contado</span>
-          <span className="font-bold text-slate-900">{formatCOP(c.countedCash)}</span>
-        </div>
-        <div className="flex justify-between p-4">
-          <span className="text-slate-500">Diferencia Final</span>
-          <span className={`font-black ${c.difference === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-            {c.difference >= 0 ? '+' : ''}{formatCOP(c.difference)}
-          </span>
-        </div>
-      </div>
-
-      {c.session?.operations && c.session.operations.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-2">
-            <FileText size={16} /> Operaciones del Día
+    <div className="w-full space-y-6 pb-28">
+      {/* HEADER WITH ACTIONS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/history')}
+            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
+            title="Volver"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 capitalize tracking-tight">
+                {dateLabel}
+              </h1>
+              <span
+                className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider ${
+                  isCuadrado
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : isSobrante
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-rose-100 text-rose-800 border border-rose-300'
+                }`}
+              >
+                {closing.status}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-2">
+              <span>Cerrado por: <strong>{closing.user?.name || 'Propietario'}</strong></span>
+              <span>•</span>
+              <span>Hora de Cierre: {new Date(closing.closedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+            </p>
           </div>
-          <div className="divide-y divide-slate-100">
-            {c.session.operations.map((op) => (
-              <div key={op.id} className="flex items-center justify-between px-5 py-3.5 text-xs">
-                <div>
-                  <div className="font-bold text-slate-900">{op.category?.name || op.type}</div>
-                  <div className="text-slate-400 mt-0.5">
-                    {new Date(op.operatedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                    {op.description && ` • ${op.description}`}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black transition cursor-pointer"
+          >
+            <Printer size={16} />
+            <span>Imprimir Resumen</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 6 KEY METRICS DASHBOARD */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="text-[10px] font-bold text-slate-400 uppercase">Base Apertura</div>
+          <div className="text-base font-black text-slate-900 mt-1 truncate">
+            {formatCOP(closing.initialCash)}
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="text-[10px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+            <ArrowUpRight size={12} /> Ingresos (+Entró)
+          </div>
+          <div className="text-base font-black text-emerald-700 mt-1 truncate">
+            +{formatCOP(closing.totalIncome)}
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="text-[10px] font-bold text-rose-600 uppercase flex items-center gap-1">
+            <ArrowDownRight size={12} /> Egresos (-Salió)
+          </div>
+          <div className="text-base font-black text-rose-700 mt-1 truncate">
+            -{formatCOP(closing.totalExpense)}
+          </div>
+        </div>
+
+        <div className="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 shadow-2xs">
+          <div className="text-[10px] font-bold text-emerald-800 uppercase flex items-center gap-1">
+            <Coins size={12} /> Ganancias Comisiones
+          </div>
+          <div className="text-base font-black text-emerald-800 mt-1 truncate">
+            +{formatCOP(closing.totalFees || 0)}
+          </div>
+        </div>
+
+        <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-2xs">
+          <div className="text-[10px] font-bold text-slate-400 uppercase">Saldo Esperado</div>
+          <div className="text-base font-black text-white mt-1 truncate">
+            {formatCOP(closing.expectedCash)}
+          </div>
+        </div>
+
+        <div className={`p-4 rounded-2xl border shadow-2xs ${
+          isCuadrado ? 'bg-emerald-50 border-emerald-200' : isSobrante ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
+        }`}>
+          <div className="text-[10px] font-bold uppercase text-slate-600">Arqueo Final</div>
+          <div className="text-base font-black text-slate-900 mt-1 truncate">
+            {formatCOP(closing.countedCash)}
+          </div>
+          <div className={`text-[10px] font-black mt-0.5 ${
+            isCuadrado ? 'text-emerald-700' : isSobrante ? 'text-amber-700' : 'text-rose-700'
+          }`}>
+            Dif: {closing.difference >= 0 ? '+' : ''}{formatCOP(closing.difference)}
+          </div>
+        </div>
+      </div>
+
+      {/* TABS NAVIGATION */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('OPERATIONS')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer ${
+            activeTab === 'OPERATIONS'
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <FileText size={16} />
+          <span>Todas las Operaciones ({operations.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('VOUCHERS')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer ${
+            activeTab === 'VOUCHERS'
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <QrCode size={16} />
+          <span>Vouchers y Comprobantes ({vouchersList.length})</span>
+        </button>
+
+        {latestArqueo && (
+          <button
+            onClick={() => setActiveTab('ARQUEO')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition cursor-pointer ${
+              activeTab === 'ARQUEO'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Layers size={16} />
+            <span>Desglose de Billetes y Monedas</span>
+          </button>
+        )}
+      </div>
+
+      {/* TAB CONTENT 1: DETAILED OPERATIONS */}
+      {activeTab === 'OPERATIONS' && (
+        <div className="space-y-4">
+          {/* SEARCH & FILTERS BAR */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+            <div className="relative w-full sm:w-80">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por referencia, cliente, cajero..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setFilterType('ALL')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  filterType === 'ALL' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Todos ({operations.length})
+              </button>
+              <button
+                onClick={() => setFilterType('INGRESO')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  filterType === 'INGRESO' ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Ingresos
+              </button>
+              <button
+                onClick={() => setFilterType('EGRESO')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  filterType === 'EGRESO' ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Egresos
+              </button>
+              <button
+                onClick={() => setFilterType('WITH_VOUCHER')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  filterType === 'WITH_VOUCHER' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Con Voucher ({vouchersList.length})
+              </button>
+            </div>
+          </div>
+
+          {filteredOps.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-2xs">
+              <FileText size={36} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-xs font-bold text-slate-500">No se encontraron operaciones con los filtros aplicados</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100">
+              {filteredOps.map((op, idx) => {
+                const isIngreso = op.type === 'INGRESO';
+                const hasVoucher = !!op.voucher;
+                const timeStr = new Date(op.operatedAt).toLocaleTimeString('es-CO', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                });
+
+                return (
+                  <div
+                    key={op.id}
+                    className="p-4 sm:p-5 hover:bg-slate-50/80 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    {/* LEFT: INFO */}
+                    <div className="flex items-start gap-3.5">
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold ${
+                          isIngreso
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {isIngreso ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-sm text-slate-900">
+                            {op.category?.name || (isIngreso ? 'Consignación / Recarga' : 'Retiro')}
+                          </span>
+                          {op.fee && op.fee > 0 ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              + {formatCOP(op.fee)} ganancia
+                            </span>
+                          ) : null}
+                          <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                            <Clock size={12} /> {timeStr}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 flex items-center gap-3 flex-wrap">
+                          {op.reference && (
+                            <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                              Ref: {op.reference}
+                            </span>
+                          )}
+                          {op.description && (
+                            <span>{op.description}</span>
+                          )}
+                          {op.user?.name && (
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <User size={11} /> Cajero: {op.user.name}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* RECEIVED & CHANGE INFO IF RECORDED */}
+                        {op.receivedAmount && op.receivedAmount > 0 && (
+                          <div className="text-[11px] text-slate-400 pt-0.5">
+                            Cliente pagó con: <strong>{formatCOP(op.receivedAmount)}</strong>
+                            {op.changeAmount && op.changeAmount > 0 ? ` • Cambio: ${formatCOP(op.changeAmount)}` : ' • Pago exacto'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* RIGHT: AMOUNTS & VOUCHER ACTION */}
+                    <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                      <div className="text-left sm:text-right">
+                        <div
+                          className={`text-base font-black ${
+                            isIngreso ? 'text-emerald-700' : 'text-rose-700'
+                          }`}
+                        >
+                          {isIngreso ? '+' : '-'}{formatCOP(op.amount)}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400">
+                          Impacto caja: {isIngreso ? '+' : '-'}{formatCOP(Math.abs(op.netCashFlow))}
+                        </div>
+                      </div>
+
+                      {hasVoucher ? (
+                        <button
+                          onClick={() => setSelectedVoucher({ op, voucher: op.voucher! })}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition cursor-pointer shadow-2xs"
+                        >
+                          <Eye size={14} />
+                          <span>Ver Voucher</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1.5 rounded-xl">
+                          Sin Voucher
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className={`font-black ${op.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {op.type === 'INGRESO' ? '+' : '-'}{formatCOP(op.amount)}
-                </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT 2: VOUCHERS GALLERY & VERIFICATION */}
+      {activeTab === 'VOUCHERS' && (
+        <div className="space-y-4">
+          {vouchersList.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 shadow-2xs">
+              <QrCode size={40} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-xs font-bold text-slate-500">No hay comprobantes escaneados registrados en esta jornada</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {vouchersList.map((op) => {
+                const v = op.voucher!;
+                return (
+                  <div
+                    key={v.id}
+                    className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-2xs space-y-3.5 hover:shadow-md transition"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                          <QrCode size={18} />
+                        </div>
+                        <div>
+                          <div className="font-black text-xs text-slate-900">
+                            {v.qrEntity || v.ocrEntity || op.category?.name || 'Voucher Validado'}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {new Date(op.operatedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {v.status || 'REGISTRADO'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-2xl text-xs space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Monto Comprobante:</span>
+                        <span className="font-black text-slate-900">
+                          {formatCOP(v.qrAmount || v.ocrAmount || op.amount)}
+                        </span>
+                      </div>
+                      {(v.qrReference || op.reference) && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Referencia:</span>
+                          <span className="font-bold text-slate-700 truncate max-w-[150px]">
+                            {v.qrReference || op.reference}
+                          </span>
+                        </div>
+                      )}
+                      {(v.qrOperationNum || op.operationNumber) && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">N° Transacción:</span>
+                          <span className="font-bold text-slate-700">
+                            {v.qrOperationNum || op.operationNumber}
+                          </span>
+                        </div>
+                      )}
+                      {v.qrCommerce && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Comercio:</span>
+                          <span className="font-bold text-slate-700">{v.qrCommerce}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedVoucher({ op, voucher: v })}
+                      className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-xs font-black transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Eye size={14} />
+                      <span>Ver Detalles Completos</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB CONTENT 3: PHYSICAL CASH ARQUEO BREAKDOWN */}
+      {activeTab === 'ARQUEO' && latestArqueo && (
+        <div className="space-y-4">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-sm text-slate-900">Conteo Físico Realizado en el Cierre</h3>
+                <p className="text-xs text-slate-400">
+                  Realizado por: {latestArqueo.user?.name || closing.user?.name} • {new Date(latestArqueo.createdAt).toLocaleTimeString('es-CO')}
+                </p>
               </div>
-            ))}
+              <div className="text-right">
+                <span className="text-xs text-slate-400 block">Total Efectivo Arqueado</span>
+                <span className="text-lg font-black text-slate-900">{formatCOP(latestArqueo.countedCash)}</span>
+              </div>
+            </div>
+
+            {latestArqueo.details && latestArqueo.details.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {latestArqueo.details
+                  .filter((d) => d.quantity > 0)
+                  .sort((a, b) => b.denomination - a.denomination)
+                  .map((d, i) => (
+                    <div key={i} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
+                      <div className="text-slate-400 font-bold">{formatCOP(d.denomination)}</div>
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-slate-600">{d.quantity} {d.quantity === 1 ? 'unidad' : 'unidades'}</span>
+                        <span className="font-black text-slate-900">{formatCOP(d.subtotal)}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No se registró desglose detallado por billete en este arqueo.</p>
+            )}
+
+            {latestArqueo.notes && (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                <strong className="text-slate-700 block mb-0.5">Observaciones del Arqueo:</strong>
+                <span className="text-slate-600">{latestArqueo.notes}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      <div className="text-center text-[11px] text-slate-400">
-        Cerrado por {c.user?.name} • {new Date(c.closedAt).toLocaleString('es-CO')}
-      </div>
+      {/* MODAL: FULL VOUCHER INSPECTION */}
+      {selectedVoucher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* MODAL HEADER */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Comprobante / Voucher Oficial</h3>
+                  <p className="text-[10px] text-slate-400">Inspección de auditoría de la transacción</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedVoucher(null)}
+                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-800 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* MODAL BODY */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
+              {/* OPERATION SUMMARY CARD */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Tipo de Operación:</span>
+                  <span className="font-black text-slate-900">
+                    {selectedVoucher.op.category?.name || selectedVoucher.op.type}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Valor de la Transacción:</span>
+                  <span className="text-base font-black text-emerald-700">
+                    {formatCOP(selectedVoucher.op.amount)}
+                  </span>
+                </div>
+                {selectedVoucher.op.fee && selectedVoucher.op.fee > 0 ? (
+                  <div className="flex justify-between items-center text-emerald-800 font-bold">
+                    <span>Comisión / Ganancia del Punto:</span>
+                    <span>+{formatCOP(selectedVoucher.op.fee)}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between items-center text-slate-400 text-[11px]">
+                  <span>Fecha y Hora:</span>
+                  <span>{new Date(selectedVoucher.op.operatedAt).toLocaleString('es-CO')}</span>
+                </div>
+              </div>
+
+              {/* VOUCHER / QR METADATA */}
+              <div className="space-y-2">
+                <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider">
+                  Datos Extraídos del Comprobante
+                </h4>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Banco / Entidad:</span>
+                    <span className="font-bold text-slate-900">
+                      {selectedVoucher.voucher.qrEntity || selectedVoucher.voucher.ocrEntity || 'Corresponsal Bancario'}
+                    </span>
+                  </div>
+                  {selectedVoucher.voucher.qrReference && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Referencia / Celular:</span>
+                      <span className="font-bold text-slate-900">{selectedVoucher.voucher.qrReference}</span>
+                    </div>
+                  )}
+                  {selectedVoucher.voucher.qrOperationNum && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">N° Aprobación / Operación:</span>
+                      <span className="font-bold text-slate-900">{selectedVoucher.voucher.qrOperationNum}</span>
+                    </div>
+                  )}
+                  {selectedVoucher.voucher.qrCommerce && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Punto / Comercio:</span>
+                      <span className="font-bold text-slate-900">{selectedVoucher.voucher.qrCommerce}</span>
+                    </div>
+                  )}
+                  {selectedVoucher.voucher.qrDate && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Fecha del Voucher:</span>
+                      <span className="font-bold text-slate-900">
+                        {selectedVoucher.voucher.qrDate} {selectedVoucher.voucher.qrTime || ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* OCR TEXT IF AVAILABLE */}
+              {selectedVoucher.voucher.ocrText && (
+                <div className="space-y-1.5">
+                  <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider">
+                    Lectura OCR de Texto
+                  </h4>
+                  <div className="p-3 bg-slate-100 rounded-2xl font-mono text-[11px] text-slate-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                    {selectedVoucher.voucher.ocrText}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button
+                onClick={() => setSelectedVoucher(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

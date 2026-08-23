@@ -27,8 +27,19 @@ export async function GET(req: NextRequest) {
         session: {
           include: {
             operations: {
-              include: { category: true, voucher: true },
+              include: {
+                category: true,
+                voucher: true,
+                user: { select: { id: true, name: true } },
+              },
               orderBy: { operatedAt: "asc" },
+            },
+            cashCounts: {
+              include: {
+                details: true,
+                user: { select: { id: true, name: true } },
+              },
+              orderBy: { createdAt: "desc" },
             },
           },
         },
