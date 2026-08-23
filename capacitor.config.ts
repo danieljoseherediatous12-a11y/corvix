@@ -6,10 +6,17 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: 'https://corvix-nine.vercel.app',
+    allowNavigation: [
+      'corvix-nine.vercel.app',
+      '*.vercel.app',
+      '*.aws.neon.tech',
+    ],
     cleartext: false,
+    androidScheme: 'https',
   },
   android: {
     allowMixedContent: true,
+    backgroundColor: '#0f172a',
   },
 };
 
