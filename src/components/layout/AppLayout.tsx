@@ -4,11 +4,18 @@ import { useSession } from "next-auth/react"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import InstallPWA from "@/components/ui/InstallPWA"
-import { Loader2, Landmark } from "lucide-react"
-import { CorvixLogo } from "@/components/ui/CorvixLogo"
+import { Loader2 } from "lucide-react"
 
 interface AppLayoutProps {
   children: React.ReactNode
+}
+
+export function formatRoleName(role?: string): string {
+  if (!role) return "OPERADOR"
+  if (role === "DUENO" || role === "DUEÑO") return "DUEÑO"
+  if (role === "OPERADOR") return "ASESOR"
+  if (role === "ADMIN") return "ADMIN"
+  return role
 }
 
 function getUserRole(session: ReturnType<typeof useSession>["data"]) {
@@ -30,8 +37,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     )
   }
 
-  const role = getUserRole(session)
-  const name = session?.user?.name ?? "Usuario"
+  const rawRole = getUserRole(session)
+  const roleDisplay = formatRoleName(rawRole)
+  const name = session?.user?.name ?? "Daniel"
   const email = session?.user?.email ?? ""
 
   return (
@@ -41,7 +49,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         businessName="Mi Corresponsal"
         userName={name}
         userEmail={email}
-        userRole={role}
+        userRole={roleDisplay}
       />
 
       {/* Main area */}
@@ -49,26 +57,33 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* PWA Install Banner */}
         <InstallPWA />
 
-        {/* Top bar (mobile only) */}
-        <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-900 p-1 border border-slate-800 shrink-0 flex items-center justify-center">
-              <CorvixLogo size={22} />
+        {/* Top bar (mobile only - with clear logo & correct DUEÑO badge) */}
+        <header className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-30 sticky top-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white p-1 border border-slate-200 shadow-xs shrink-0 flex items-center justify-center">
+              <img
+                src="/icons/icon-192.png"
+                alt="Corvix Logo"
+                className="w-full h-full object-contain rounded-xl"
+              />
             </div>
             <div>
-              <h1 className="font-black text-sm leading-tight text-slate-900 tracking-wider">
+              <h1 className="font-black text-base leading-tight text-slate-900 tracking-wider flex items-center gap-1.5">
                 CORVIX
               </h1>
-              <p className="text-slate-500 text-[10px]">Control de Caja</p>
+              <p className="text-slate-400 text-[10px] font-semibold">Control Inteligente de Caja</p>
             </div>
           </div>
-          <span className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold px-2 py-0.5 rounded-md">
-            {role}
-          </span>
+          
+          <div className="flex items-center gap-1.5">
+            <span className="bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-[11px] font-black px-2.5 py-1 rounded-xl shadow-2xs">
+              {roleDisplay}
+            </span>
+          </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-6 bg-slate-50">
+        <main className="flex-1 overflow-y-auto pb-24 md:pb-6 bg-slate-50">
           <div className="p-4 md:p-6 lg:p-8 max-w-[1540px] mx-auto w-full">
             {children}
           </div>
