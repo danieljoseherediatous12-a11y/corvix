@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import InstallPWA from "@/components/ui/InstallPWA"
 import { Loader2 } from "lucide-react"
+import { CorvixLogo } from "@/components/ui/CorvixLogo"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -60,12 +61,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Top bar (mobile only - with clear logo & correct DUEÑO badge) */}
         <header className="md:hidden bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-30 sticky top-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-white p-1 border border-slate-200 shadow-xs shrink-0 flex items-center justify-center">
-              <img
-                src="/icons/icon-192.png"
-                alt="Corvix Logo"
-                className="w-full h-full object-contain rounded-xl"
-              />
+            <div className="w-10 h-10 rounded-2xl bg-white p-1 border border-slate-200/90 shadow-xs shrink-0 flex items-center justify-center">
+              <CorvixLogo size={30} />
             </div>
             <div>
               <h1 className="font-black text-base leading-tight text-slate-900 tracking-wider flex items-center gap-1.5">
