@@ -62,22 +62,27 @@ async function main() {
   console.log("✅ Categorías creadas");
 
   const users = [
-    { name: "Dueño", email: "dueno@corresponsal.com", password: await bcrypt.hash("dueno123", 12), role: "DUENO" },
-    { name: "Administrador", email: "admin@corresponsal.com", password: await bcrypt.hash("admin123", 12), role: "ADMIN" },
-    { name: "Operador", email: "operador@corresponsal.com", password: await bcrypt.hash("operador123", 12), role: "OPERADOR" },
+    { name: "Daniel", email: "ddaniel2607@hotmail.com", password: await bcrypt.hash("Eltra510@", 12), role: "DUENO" },
+    { name: "Asesor", email: "asesor@gmail.com", password: await bcrypt.hash("123456", 12), role: "OPERADOR" },
   ];
 
   for (const userData of users) {
-    const existing = await prisma.user.findUnique({ where: { email: userData.email } });
-    if (!existing) await prisma.user.create({ data: userData });
+    await prisma.user.upsert({
+      where: { email: userData.email },
+      update: {
+        password: userData.password,
+        role: userData.role,
+        name: userData.name,
+      },
+      create: userData,
+    });
   }
-  console.log("✅ Usuarios creados");
+  console.log("✅ Usuarios creados y actualizados");
 
   console.log("\n🎉 ¡Datos iniciales sembrados exitosamente!");
   console.log("\n📋 Credenciales de acceso:");
-  console.log("  👑 Dueño:      dueno@corresponsal.com / dueno123");
-  console.log("  🔐 Admin:      admin@corresponsal.com / admin123");
-  console.log("  👤 Operador:   operador@corresponsal.com / operador123");
+  console.log("  👑 Dueño:      ddaniel2607@hotmail.com / Eltra510@");
+  console.log("  👤 Asesor:     asesor@gmail.com / 123456");
 }
 
 main()

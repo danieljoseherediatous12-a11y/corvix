@@ -236,19 +236,7 @@ export default function SettingsPage() {
             </h3>
 
             <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70">
-                <div>
-                  <div className="font-bold text-slate-900">Aplicación Móvil CORVIX</div>
-                  <div className="text-slate-400 text-[11px]">Instalador APK para dispositivos Android</div>
-                </div>
-                <a
-                  href="/corvix.apk"
-                  download="Corvix.apk"
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition"
-                >
-                  Descargar APK
-                </a>
-              </div>
+
 
               <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70">
                 <div>

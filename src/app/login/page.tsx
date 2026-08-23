@@ -171,30 +171,7 @@ export default function LoginPage() {
               </a>
             </div>
 
-            {/* Fast Demo Access Pills */}
-            <div className="pt-2 space-y-2 border-t border-slate-100">
-              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
-                Acceso Rápido
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('dueno@corresponsal.com', 'dueno123')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5"
-                >
-                  <ShieldCheck size={14} className="text-emerald-600" />
-                  <span>Dueño</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('operador@corresponsal.com', 'operador123')}
-                  className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5"
-                >
-                  <Building2 size={14} className="text-blue-600" />
-                  <span>Operador</span>
-                </button>
-              </div>
-            </div>
+
           </form>
         </div>
 
