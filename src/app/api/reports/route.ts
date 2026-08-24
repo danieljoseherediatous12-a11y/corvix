@@ -173,6 +173,18 @@ export async function GET(req: NextRequest) {
     type,
     period: dateFilter,
     closings: dailyEntries,
+    operations: operations.map((op) => ({
+      id: op.id,
+      date: op.session?.date || op.operatedAt.toISOString().split('T')[0],
+      operatedAt: op.operatedAt,
+      type: op.type,
+      category: op.category?.name || (op.type === "INGRESO" ? "Ingresos / Depósitos" : "Retiros / Pagos"),
+      amount: op.amount,
+      fee: op.fee || 0,
+      netCashFlow: op.netCashFlow,
+      reference: op.reference || op.operationNumber || op.voucherNumber || "S/N",
+      userName: op.user?.name || "Operador",
+    })),
     summary: {
       totalIncome,
       totalExpense,
