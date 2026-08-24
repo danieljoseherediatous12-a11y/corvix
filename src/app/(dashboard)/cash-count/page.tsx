@@ -24,6 +24,7 @@ export default function CashCountPage() {
   const [denominations, setDenominations] = useState<Denomination[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [expectedCash, setExpectedCash] = useState<number>(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -47,8 +48,10 @@ export default function CashCountPage() {
 
         if (dashData?.summary) {
           setExpectedCash(dashData.summary.expectedCash ?? dashData.summary.initialCash ?? 0);
+          setSessionId(dashData.summary.sessionId || dashData.session?.id || null);
         } else if (dashData?.session) {
           setExpectedCash(dashData.session.initialCash ?? 0);
+          setSessionId(dashData.session.id || null);
         }
         setLoading(false);
       })
@@ -100,15 +103,23 @@ export default function CashCountPage() {
       .filter((d) => (counts[d.id] || 0) > 0)
       .map((d) => ({
         denominationId: d.id,
+        denomination: d.value,
         quantity: counts[d.id] || 0,
         subtotal: (counts[d.id] || 0) * d.value,
       }));
+
+    if (details.length === 0 && totalCounted === 0) {
+      setError('Debes contar al menos una denominación de billete o moneda');
+      setSaving(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/cash-counts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId,
           countedCash: totalCounted,
           difference,
           status: isExact ? 'CUADRADO' : isSurplus ? 'SOBRANTE' : 'FALTANTE',

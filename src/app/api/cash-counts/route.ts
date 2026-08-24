@@ -38,53 +38,88 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { sessionId, details, notes } = body;
-  // details: Array<{ denomination: number, quantity: number }>
 
-  if (!sessionId || !details) {
-    return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+  if (!details || !Array.isArray(details)) {
+    return NextResponse.json({ error: "Faltan los detalles de denominaciones del conteo" }, { status: 400 });
   }
 
   // Get session with operations to calculate expected cash
-  const cashSession = await prisma.cashSession.findUnique({
-    where: { id: sessionId },
-    include: {
-      operations: {
-        where: { status: { not: "CANCELADA" } },
-        select: { netCashFlow: true },
-      },
-    },
-  });
+  let targetSessionId = sessionId;
+  let cashSession = targetSessionId
+    ? await prisma.cashSession.findUnique({
+        where: { id: targetSessionId },
+        include: {
+          operations: {
+            where: { status: { not: "CANCELADA" } },
+            select: { netCashFlow: true },
+          },
+        },
+      })
+    : null;
 
-  if (!cashSession) return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
+  if (!cashSession) {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+    cashSession = await prisma.cashSession.findFirst({
+      where: { date: today, status: "ABIERTA" },
+      include: {
+        operations: {
+          where: { status: { not: "CANCELADA" } },
+          select: { netCashFlow: true },
+        },
+      },
+    });
+
+    if (!cashSession) {
+      cashSession = await prisma.cashSession.findFirst({
+        where: { status: "ABIERTA" },
+        orderBy: { date: "desc" },
+        include: {
+          operations: {
+            where: { status: { not: "CANCELADA" } },
+            select: { netCashFlow: true },
+          },
+        },
+      });
+    }
+
+    if (cashSession) {
+      targetSessionId = cashSession.id;
+    }
+  }
+
+  if (!cashSession || !targetSessionId) {
+    return NextResponse.json({ error: "No hay una jornada activa abierta para registrar el arqueo" }, { status: 404 });
+  }
+
+  // Sanitize details
+  const parsedDetails = details
+    .map((d: any) => ({
+      denomination: Number(d.denomination ?? d.value ?? 0),
+      quantity: Number(d.quantity ?? 0),
+    }))
+    .filter((d) => d.denomination > 0 && d.quantity > 0);
 
   // Calculate expected and counted amounts
   const expectedCash = calculateExpectedCash(cashSession.initialCash, cashSession.operations);
-  const countedCash = calculateCountTotal(
-    details.map((d: { denomination: number; quantity: number }) => ({
-      denomination: d.denomination,
-      quantity: d.quantity,
-    }))
-  );
+  const countedCash = calculateCountTotal(parsedDetails);
   const { difference, status } = calculateDifference(countedCash, expectedCash);
 
   // Create cash count with details
   const cashCount = await prisma.cashCount.create({
     data: {
-      sessionId,
+      sessionId: targetSessionId,
       userId: session.user.id!,
       expectedCash,
       countedCash,
       difference,
       status,
-      notes,
+      notes: notes || null,
       details: {
-        create: details
-          .filter((d: { denomination: number; quantity: number }) => d.quantity > 0)
-          .map((d: { denomination: number; quantity: number }) => ({
-            denomination: d.denomination,
-            quantity: d.quantity,
-            subtotal: d.denomination * d.quantity,
-          })),
+        create: parsedDetails.map((d) => ({
+          denomination: d.denomination,
+          quantity: d.quantity,
+          subtotal: d.denomination * d.quantity,
+        })),
       },
     },
     include: {
