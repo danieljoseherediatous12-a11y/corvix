@@ -320,79 +320,30 @@ Responde SOLO con JSON válido, sin explicaciones:
   "status": "EXITOSA o RECHAZADA"
 }`;
 
-    // === LAYER 1: GROQ VISION - Fastest & Free ===
-    const groqKeySetting = await prisma.setting.findUnique({ where: { key: "GROQ_API_KEY" } });
-    const groqApiKey = process.env.GROQ_API_KEY || groqKeySetting?.value;
-
-    if (groqApiKey && imageBase64) {
-      try {
-        const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
-        const mimeMatch = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
-        const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-
-        const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${groqApiKey}`,
-          },
-          body: JSON.stringify({
-            model: "meta-llama/llama-4-scout-17b-16e-instruct",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:${mimeType};base64,${cleanBase64}` },
-                  },
-                ],
-              },
-            ],
-            temperature: 0.05,
-            max_tokens: 512,
-            response_format: { type: "json_object" },
-          }),
-        });
-
-        if (groqResponse.ok) {
-          const groqData = await groqResponse.json();
-          const content = groqData?.choices?.[0]?.message?.content;
-          if (content) {
-            const parsedJson = sanitizeAIResult(JSON.parse(content));
-            return NextResponse.json({
-              result: { ...parsedJson, engine: "AI_VISION_GROQ", confidence: 0.99 },
-            });
-          }
-        }
-      } catch (groqErr) {
-        console.warn("Groq Vision fallback:", groqErr);
-      }
-    }
-
-    // === LAYER 2: GEMINI VISION (Google AI) - Fallback ===
+    // === LAYER 1: GEMINI VISION (Google AI Studio) - 100% Precision Vision ===
     const geminiKeySetting = await prisma.setting.findUnique({ where: { key: "GEMINI_API_KEY" } });
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || geminiKeySetting?.value;
 
-    if (geminiApiKey && imageBase64) {
+    if (geminiApiKey && (imageBase64 || rawText)) {
       try {
-        const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+        const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+
+        if (imageBase64) {
+          const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+          const mimeMatch = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
+          const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+          parts.push({ inlineData: { mimeType, data: cleanBase64 } });
+        } else if (rawText) {
+          parts.push({ text: `Texto extraído del comprobante:\n${rawText}` });
+        }
 
         const aiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    { text: prompt },
-                    { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
-                  ],
-                },
-              ],
+              contents: [{ parts }],
               generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
             }),
           }
@@ -407,9 +358,55 @@ Responde SOLO con JSON válido, sin explicaciones:
               result: { ...parsedJson, engine: "AI_VISION_GEMINI", confidence: 0.99 },
             });
           }
+        } else {
+          console.warn("Gemini 3.6 error:", await aiResponse.text());
         }
       } catch (aiErr) {
-        console.warn("Gemini Vision fallback to Heuristic OCR:", aiErr);
+        console.warn("Gemini Vision fallback to Groq / Heuristic OCR:", aiErr);
+      }
+    }
+
+    // === LAYER 2: GROQ AI (Qwen 3.6 27B / Meta) ===
+    const groqKeySetting = await prisma.setting.findUnique({ where: { key: "GROQ_API_KEY" } });
+    const groqApiKey = process.env.GROQ_API_KEY || groqKeySetting?.value;
+
+    if (groqApiKey && rawText) {
+      try {
+        const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqApiKey}`,
+          },
+          body: JSON.stringify({
+            model: "qwen/qwen3.6-27b",
+            messages: [
+              {
+                role: "user",
+                content: `${prompt}\n\nTexto OCR del comprobante:\n${rawText}`,
+              },
+            ],
+            temperature: 0.1,
+            max_tokens: 512,
+          }),
+        });
+
+        if (groqResponse.ok) {
+          const groqData = await groqResponse.json();
+          const content = groqData?.choices?.[0]?.message?.content;
+          if (content) {
+            // Find JSON inside markdown or raw string
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsedJson = sanitizeAIResult(JSON.parse(jsonMatch[0]));
+              return NextResponse.json({
+                result: { ...parsedJson, engine: "AI_VISION_GROQ", confidence: 0.95 },
+              });
+            }
+          }
+        }
+      } catch (groqErr) {
+        console.warn("Groq fallback to Heuristic OCR:", groqErr);
       }
     }
 
