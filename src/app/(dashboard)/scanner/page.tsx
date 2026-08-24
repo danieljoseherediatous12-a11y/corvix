@@ -322,12 +322,18 @@ export default function ScannerPage() {
       scannedImage: capturedImage || undefined,
     };
 
+    // Store large image payload in sessionStorage to avoid URI_TOO_LONG (414)
+    try {
+      sessionStorage.setItem('corvix_pending_voucher', JSON.stringify(voucherData));
+    } catch (e) {
+      console.warn("Could not save voucher to sessionStorage", e);
+    }
+
     const params = new URLSearchParams();
     if (numAmount > 0) params.set('amount', String(numAmount));
     if (reference) params.set('ref', reference);
     if (operationNumber) params.set('op', operationNumber);
     params.set('type', opType);
-    params.set('voucherData', JSON.stringify(voucherData));
 
     router.push(`/operations/new?${params.toString()}`);
   };

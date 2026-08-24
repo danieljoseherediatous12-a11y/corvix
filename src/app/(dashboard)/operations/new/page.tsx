@@ -73,7 +73,15 @@ export default function NewOperationPage() {
     if (paramRef) setReference(paramRef);
     if (paramOp) setOperationNumber(paramOp);
     if (paramType) setOpType(paramType);
-    if (paramVoucher) setVoucherData(paramVoucher);
+
+    // Read voucher data from sessionStorage (preferred for large images) or query params
+    const storedVoucher = typeof window !== 'undefined' ? sessionStorage.getItem('corvix_pending_voucher') : null;
+    if (storedVoucher) {
+      setVoucherData(storedVoucher);
+      sessionStorage.removeItem('corvix_pending_voucher');
+    } else if (paramVoucher) {
+      setVoucherData(paramVoucher);
+    }
   }, [searchParams]);
 
   const filteredCategories = categories.filter((c) => c.type === opType);

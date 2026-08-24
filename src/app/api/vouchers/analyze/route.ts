@@ -44,6 +44,9 @@ const EXCLUDED_WORDS = new Set([
   "PAGAPAG","PAGA","RECAUD"
 ]);
 
+// Words and labels that are NOT amounts
+const NON_AMOUNT_LINE_PATTERN = /(?:RECIBO|APRO|RRN|CONVENIO|C\.?UNICO|TER|TEL|NIT|FECHA|HORA|AUT|REF|REFERENCIA|CUENTA|CELULAR|DOCUMENTO)/i;
+
 // High-precision regex heuristic parser for Colombian vouchers
 export function parseColombianVoucherText(rawText: string): VoucherAnalysisResult {
   const lines = rawText.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -51,12 +54,12 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
 
   const result: VoucherAnalysisResult = {
     engine: "HEURISTIC_OCR",
-    confidence: 0.80,
+    confidence: 0.90,
     rawText,
   };
 
   // 1. Detect Bank / Entity (Redeban/Credibanco is the NETWORK, not the bank)
-  if (fullText.includes("BANCOLOMBIA") || fullText.includes("SANCOLOMBIA") || fullText.includes("CORRESPONSAL")) {
+  if (fullText.includes("BANCOLOMBIA") || fullText.includes("SANCOLOMBIA") || fullText.includes("CORRESPONSAL BANCOLOMBIA") || fullText.includes("PAGAFACIL")) {
     result.entity = "BANCOLOMBIA";
   } else if (fullText.includes("NEQUI")) {
     result.entity = "NEQUI";
@@ -75,7 +78,6 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
   } else if (fullText.includes("SUPERGIROS") || fullText.includes("SURED")) {
     result.entity = "SUPERGIROS";
   } else if (fullText.includes("REDEBAN") || fullText.includes("RBM") || fullText.includes("CREDIBANCO")) {
-    // Redeban/Credibanco is the card network — detect underlying bank if visible
     if (fullText.includes("BANCOLOMBIA")) result.entity = "BANCOLOMBIA";
     else result.entity = "REDEBAN / CREDIBANCO";
   } else if (fullText.includes("MOVII") || fullText.includes("DALE")) {
@@ -115,32 +117,52 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.type = "INGRESO";
   }
 
-  // 3. Detect Amount — Multi-strategy approach
-  let extractedAmount: number | undefined;
+  // 3. Detect Operation Number / Comprobante / Aprobación
+  // Check in order of specificity for Redeban / Bancolombia / Credibanco
+  const reciboMatch = rawText.match(/RECIBO\s*[:#.]*\s*([0-9]{3,12})/i);
+  const aproMatch = rawText.match(/APRO(?:BACION|B)?\s*[:#.]*\s*([0-9]{3,12})/i);
+  const rrnMatch = rawText.match(/RRN\s*[:#.]*\s*([0-9]{3,12})/i);
+  const compMatch = rawText.match(/(?:COMPROBANTE|AUTORIZACION|AUT\.?|OP\.?|TRANSACCION|NRO\.?)\s*[:#.]*\s*([0-9]{3,12})/i);
 
-  // Strategy A: Look for labeled amount lines (VALOR, TOTAL, PAGADO, MONTO, etc.)
-  const amountKeywords = /^(VALOR|TOTAL|MONTO|IMPORTE|PAGADO|EFECTIVO|PAGO|RECAUDO|COBRO|PRECIO)[\s:$]*/i;
-  for (const line of lines) {
-    if (amountKeywords.test(line)) {
-      // Extract the number from this line
-      const nums = line.match(/([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{5,9})/g);
-      if (nums) {
-        for (const n of nums) {
-          const parsed = parseColombianAmount(n);
-          if (parsed && parsed >= 1000) {
-            extractedAmount = parsed;
-            break;
-          }
-        }
-      }
-      if (extractedAmount) break;
-    }
+  if (reciboMatch && reciboMatch[1]) {
+    result.operationNumber = reciboMatch[1].trim();
+  } else if (aproMatch && aproMatch[1]) {
+    result.operationNumber = aproMatch[1].trim();
+  } else if (rrnMatch && rrnMatch[1]) {
+    result.operationNumber = rrnMatch[1].trim();
+  } else if (compMatch && compMatch[1]) {
+    result.operationNumber = compMatch[1].trim();
   }
 
-  // Strategy B: Find $ followed by a number on its own line or after label
-  if (!extractedAmount) {
-    for (const line of lines) {
-      const match = line.match(/\$\s*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{5,9})/);
+  // 4. Detect Reference Number (CONVENIO, REF, CUENTA, PIN, CELULAR, DOCUMENTO)
+  const convenioMatch = rawText.match(/CONVENIO\s*[:#.]*\s*([0-9]{4,25})/i);
+  const refMatch = rawText.match(/(?:REF|REFERENCIA)\s*[:#.]*\s*([0-9]{4,25})/i);
+  const cuentaMatch = rawText.match(/(?:CUENTA|CELULAR|DOCUMENTO|PIN)\s*[:#.]*\s*([0-9]{4,25})/i);
+
+  if (convenioMatch && convenioMatch[1]) {
+    result.reference = convenioMatch[1].trim();
+  } else if (refMatch && refMatch[1]) {
+    // If ref is a long zero-padded string like 000000000000000077032, trim leading zeroes or keep
+    const cleanRef = refMatch[1].replace(/^0+/, "") || refMatch[1];
+    result.reference = cleanRef;
+  } else if (cuentaMatch && cuentaMatch[1]) {
+    result.reference = cuentaMatch[1].trim();
+  }
+
+  // 5. Detect Amount — Strictly from VALOR / TOTAL / PAGADO lines or explicit currency symbols
+  let extractedAmount: number | undefined;
+
+  // Strategy A: Lines containing "VALOR", "TOTAL", "PAGADO", "MONTO"
+  for (const line of lines) {
+    const upper = line.toUpperCase();
+    if (upper.includes("VALOR") || upper.includes("TOTAL") || upper.includes("PAGADO") || upper.includes("MONTO")) {
+      // Avoid legal text like "NO DEBE COBRARTE"
+      if (upper.includes("NO DEBE") || upper.includes("RESPONSABLE")) continue;
+
+      // Extract after VALOR / TOTAL
+      // Remove spaces between digits and dots: "3 . 000 . 000" -> "3.000.000"
+      const normalizedLine = line.replace(/(\d)\s*([.,])\s*(\d)/g, "$1$2$3");
+      const match = normalizedLine.match(/(?:\$|COP|:\s*)?\s*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,9})/);
       if (match) {
         const parsed = parseColombianAmount(match[1]);
         if (parsed && parsed >= 1000) {
@@ -151,12 +173,14 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     }
   }
 
-  // Strategy C: Find any large number (5+ digits) that looks like a COP amount
+  // Strategy B: Lines with $ that are NOT metadata lines (APRO, RECIBO, etc.)
   if (!extractedAmount) {
-    const allNums = rawText.match(/\b([0-9]{1,3}(?:\.[0-9]{3})+)\b/g);
-    if (allNums) {
-      for (const n of allNums) {
-        const parsed = parseColombianAmount(n);
+    for (const line of lines) {
+      if (NON_AMOUNT_LINE_PATTERN.test(line)) continue;
+      const normalizedLine = line.replace(/(\d)\s*([.,])\s*(\d)/g, "$1$2$3");
+      const match = normalizedLine.match(/\$\s*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{5,9})/);
+      if (match) {
+        const parsed = parseColombianAmount(match[1]);
         if (parsed && parsed >= 1000) {
           extractedAmount = parsed;
           break;
@@ -165,49 +189,30 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     }
   }
 
+  // Strategy C: Any dotted number (e.g. 3.000.000 or 50.000) in non-metadata lines
+  if (!extractedAmount) {
+    for (const line of lines) {
+      if (NON_AMOUNT_LINE_PATTERN.test(line)) continue;
+      const dottedMatches = line.match(/\b([0-9]{1,3}(?:\.[0-9]{3})+)\b/g);
+      if (dottedMatches) {
+        for (const m of dottedMatches) {
+          const parsed = parseColombianAmount(m);
+          if (parsed && parsed >= 1000) {
+            extractedAmount = parsed;
+            break;
+          }
+        }
+      }
+      if (extractedAmount) break;
+    }
+  }
+
   if (extractedAmount) {
     result.amount = extractedAmount;
   }
 
-  // 4. Detect Operation Number (only pure digits or short alphanumeric codes — NOT words)
-  for (const line of lines) {
-    const compMatch = line.match(/(?:COMPROBANTE|APROBACION|APROBACIÓN|AUTORIZACION|AUTORIZACIÓN|AUT\.?|NRO\.?|NO\.?)\s*[:#]?\s*([0-9]{3,12})/i);
-    if (compMatch && compMatch[1]) {
-      const candidate = compMatch[1].trim();
-      if (/^[0-9]+$/.test(candidate)) {
-        result.operationNumber = candidate;
-        break;
-      }
-    }
-  }
-
-  // Fallback: any line that is ONLY a short number (4-8 digits) after a label
-  if (!result.operationNumber) {
-    for (const line of lines) {
-      const upper = line.toUpperCase().trim();
-      if (EXCLUDED_WORDS.has(upper)) continue;
-      // Pure number line, 4-8 digits
-      if (/^[0-9]{4,8}$/.test(line.trim())) {
-        result.operationNumber = line.trim();
-        break;
-      }
-    }
-  }
-
-  // 5. Detect Reference Number (REF, CONVENIO, CUENTA, PIN, CELULAR, DOCUMENTO)
-  for (const line of lines) {
-    const refMatch = line.match(/(?:REF|REFERENCIA|CONVENIO|CUENTA|CELULAR|DOCUMENTO|PIN|NUM\.?|NUMERO DE REFERENCIA)[.:\s#]*([0-9]{4,25})/i);
-    if (refMatch && refMatch[1]) {
-      const candidate = refMatch[1].trim();
-      if (/^[0-9]+$/.test(candidate) && candidate.length >= 4) {
-        result.reference = candidate;
-        break;
-      }
-    }
-  }
-
   // 6. Detect Date and Time
-  const dateMatch = rawText.match(/(\d{2}[/-]\d{2}[/-]\d{2,4}|\d{4}[/-]\d{2}[/-]\d{2})/);
+  const dateMatch = rawText.match(/(\d{2}[/-]\d{2}[/-]\d{2,4}|\d{4}[/-]\d{2}[/-]\d{2}|[A-Z]{3}\s+\d{1,2}\s+\d{4})/i);
   if (dateMatch) result.date = dateMatch[1];
 
   const timeMatch = rawText.match(/(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)/);
