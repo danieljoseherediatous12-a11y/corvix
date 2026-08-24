@@ -14,20 +14,35 @@ export interface VoucherAnalysisResult {
   time?: string;
   status?: string;
   rawText?: string;
-  engine: "AI_VISION" | "HEURISTIC_OCR";
+  engine: "AI_VISION_GROQ" | "AI_VISION_GEMINI" | "AI_VISION" | "HEURISTIC_OCR";
   confidence: number;
 }
 
 // Clean and parse numbers with Colombian currency format (1.000.000 or 1,000,000 or 1000000)
 function parseColombianAmount(text: string): number | undefined {
   if (!text) return undefined;
-  const clean = text.replace(/[$\s]/g, "").replace(/\./g, "").replace(/,/g, ".");
-  const num = parseFloat(clean);
-  if (!isNaN(num) && num > 0 && num < 500000000) {
-    return Math.round(num);
+  // Remove currency symbols and spaces
+  let clean = text.replace(/[$\s]/g, "");
+  // Handle format 1.000.000 -> 1000000 (period as thousands separator)
+  // vs 1000,50 -> 1000.50 (comma as decimal - not used in COP)
+  // In COP there are no cents, so periods are always thousands separators
+  clean = clean.replace(/\./g, "").replace(/,/g, "");
+  const num = parseInt(clean, 10);
+  if (!isNaN(num) && num >= 1000 && num < 500000000) {
+    return num;
   }
   return undefined;
 }
+
+// Words that are NEVER operation numbers
+const EXCLUDED_WORDS = new Set([
+  "BANCOLOMBIA","SANCOLOMBIA","CORRESPONSAL","ORRESPONSA","PAGAPAGTI",
+  "REDEBAN","CREDIBANCO","CLIENTE","DUPLICADO","ORIGINAL","COMPROBANTE",
+  "APROBACION","AUTORIZACION","NUMERO","EFECTY","DAVIPLATA","NEQUI","DEBE",
+  "HABER","CARGO","ABONO","DEBIT","CREDIT","SALDO","FECHA","HORA","RECIBO",
+  "TRANSACCION","VOUCHER","PAGARE","APLICA","FIRMA","TARJETA","PRODUCTO",
+  "PAGAPAG","PAGA","RECAUD"
+]);
 
 // High-precision regex heuristic parser for Colombian vouchers
 export function parseColombianVoucherText(rawText: string): VoucherAnalysisResult {
@@ -36,12 +51,12 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
 
   const result: VoucherAnalysisResult = {
     engine: "HEURISTIC_OCR",
-    confidence: 0.85,
+    confidence: 0.80,
     rawText,
   };
 
-  // 1. Detect Bank / Entity
-  if (fullText.includes("BANCOLOMBIA") || fullText.includes("CORRESPONSAL BANCOLOMBIA") || fullText.includes("SANCOLOMBIA")) {
+  // 1. Detect Bank / Entity (Redeban/Credibanco is the NETWORK, not the bank)
+  if (fullText.includes("BANCOLOMBIA") || fullText.includes("SANCOLOMBIA") || fullText.includes("CORRESPONSAL")) {
     result.entity = "BANCOLOMBIA";
   } else if (fullText.includes("NEQUI")) {
     result.entity = "NEQUI";
@@ -59,8 +74,10 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.entity = "BANCO DE BOGOTÁ";
   } else if (fullText.includes("SUPERGIROS") || fullText.includes("SURED")) {
     result.entity = "SUPERGIROS";
-  } else if (fullText.includes("REDEBAN") || fullText.includes("RBM")) {
-    result.entity = "REDEBAN";
+  } else if (fullText.includes("REDEBAN") || fullText.includes("RBM") || fullText.includes("CREDIBANCO")) {
+    // Redeban/Credibanco is the card network — detect underlying bank if visible
+    if (fullText.includes("BANCOLOMBIA")) result.entity = "BANCOLOMBIA";
+    else result.entity = "REDEBAN / CREDIBANCO";
   } else if (fullText.includes("MOVII") || fullText.includes("DALE")) {
     result.entity = "BILLETERA DIGITAL";
   }
@@ -98,22 +115,32 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.type = "INGRESO";
   }
 
-  // 3. Detect Amount (Look specifically for VALOR, TOTAL, PAGADO, COP, $)
+  // 3. Detect Amount — Multi-strategy approach
   let extractedAmount: number | undefined;
 
-  // Search line by line for keywords
+  // Strategy A: Look for labeled amount lines (VALOR, TOTAL, PAGADO, MONTO, etc.)
+  const amountKeywords = /^(VALOR|TOTAL|MONTO|IMPORTE|PAGADO|EFECTIVO|PAGO|RECAUDO|COBRO|PRECIO)[\s:$]*/i;
   for (const line of lines) {
-    const upper = line.toUpperCase();
-    if (
-      upper.includes("VALOR") ||
-      upper.includes("TOTAL") ||
-      upper.includes("MONTO") ||
-      upper.includes("IMPORTE") ||
-      upper.includes("PAGADO") ||
-      upper.includes("EFECTIVO")
-    ) {
-      // Find numbers in this line
-      const match = line.match(/(?:\$|COP|:\s*)?\s*([0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]{2})?|[0-9]{4,9})/);
+    if (amountKeywords.test(line)) {
+      // Extract the number from this line
+      const nums = line.match(/([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{5,9})/g);
+      if (nums) {
+        for (const n of nums) {
+          const parsed = parseColombianAmount(n);
+          if (parsed && parsed >= 1000) {
+            extractedAmount = parsed;
+            break;
+          }
+        }
+      }
+      if (extractedAmount) break;
+    }
+  }
+
+  // Strategy B: Find $ followed by a number on its own line or after label
+  if (!extractedAmount) {
+    for (const line of lines) {
+      const match = line.match(/\$\s*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{5,9})/);
       if (match) {
         const parsed = parseColombianAmount(match[1]);
         if (parsed && parsed >= 1000) {
@@ -124,12 +151,12 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     }
   }
 
-  // Fallback: match any $ amount in text
+  // Strategy C: Find any large number (5+ digits) that looks like a COP amount
   if (!extractedAmount) {
-    const allMatches = rawText.match(/\$\s*([0-9]{1,3}(?:[.,][0-9]{3})+|[0-9]{4,9})/g);
-    if (allMatches && allMatches.length > 0) {
-      for (const m of allMatches) {
-        const parsed = parseColombianAmount(m);
+    const allNums = rawText.match(/\b([0-9]{1,3}(?:\.[0-9]{3})+)\b/g);
+    if (allNums) {
+      for (const n of allNums) {
+        const parsed = parseColombianAmount(n);
         if (parsed && parsed >= 1000) {
           extractedAmount = parsed;
           break;
@@ -142,25 +169,34 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.amount = extractedAmount;
   }
 
-  // 4. Detect Operation Number / Comprobante / Aprobación
-  // Exclude common header words like SANCOLOMBIA, BANCOLOMBIA, CORRESPONSAL, PAGAPAGTI
-  const excludedWords = ["BANCOLOMBIA", "SANCOLOMBIA", "CORRESPONSAL", "ORRESPONSA", "PAGAPAGTI", "REDEBAN", "CREDIBANCO", "CLIENTE", "DUPLICADO"];
-
+  // 4. Detect Operation Number (only pure digits or short alphanumeric codes — NOT words)
   for (const line of lines) {
-    const upper = line.toUpperCase();
-    const compMatch = line.match(/(?:COMPROBANTE|APROBACION|APROBACIÓN|AUTORIZACION|AUTORIZACIÓN|AUT|OP|NUMERO|NRO|NO)[.:\s#]*([0-9A-Z]{3,12})/i);
+    const compMatch = line.match(/(?:COMPROBANTE|APROBACION|APROBACIÓN|AUTORIZACION|AUTORIZACIÓN|AUT\.?|NRO\.?|NO\.?)\s*[:#]?\s*([0-9]{3,12})/i);
     if (compMatch && compMatch[1]) {
-      const candidate = compMatch[1].trim().toUpperCase();
-      if (!excludedWords.some((w) => candidate.includes(w)) && /^[0-9A-Z]+$/.test(candidate)) {
+      const candidate = compMatch[1].trim();
+      if (/^[0-9]+$/.test(candidate)) {
         result.operationNumber = candidate;
         break;
       }
     }
   }
 
-  // 5. Detect Reference Number (REF, CONVENIO, CUENTA, PIN, CELULAR)
+  // Fallback: any line that is ONLY a short number (4-8 digits) after a label
+  if (!result.operationNumber) {
+    for (const line of lines) {
+      const upper = line.toUpperCase().trim();
+      if (EXCLUDED_WORDS.has(upper)) continue;
+      // Pure number line, 4-8 digits
+      if (/^[0-9]{4,8}$/.test(line.trim())) {
+        result.operationNumber = line.trim();
+        break;
+      }
+    }
+  }
+
+  // 5. Detect Reference Number (REF, CONVENIO, CUENTA, PIN, CELULAR, DOCUMENTO)
   for (const line of lines) {
-    const refMatch = line.match(/(?:REF|REFERENCIA|CONVENIO|CUENTA|CELULAR|DOCUMENTO|PIN)[.:\s#]*([0-9]{4,25})/i);
+    const refMatch = line.match(/(?:REF|REFERENCIA|CONVENIO|CUENTA|CELULAR|DOCUMENTO|PIN|NUM\.?|NUMERO DE REFERENCIA)[.:\s#]*([0-9]{4,25})/i);
     if (refMatch && refMatch[1]) {
       const candidate = refMatch[1].trim();
       if (/^[0-9]+$/.test(candidate) && candidate.length >= 4) {
