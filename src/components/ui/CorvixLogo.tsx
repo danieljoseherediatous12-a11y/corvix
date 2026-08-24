@@ -11,20 +11,24 @@ export function CorvixLogo({ size = 48, className = '' }: CorvixLogoProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 512 512"
+      viewBox="110 70 292 372"
       style={{ width: dimension, height: dimension }}
       className={`shrink-0 ${className}`}
     >
       <defs>
-        <linearGradient id="corvix_grad_emerald1" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="clogo_green_left" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#059669" />
+        </linearGradient>
+        <linearGradient id="clogo_green_right" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#059669" />
           <stop offset="100%" stopColor="#047857" />
         </linearGradient>
-        <linearGradient id="corvix_grad_emerald2" x1="0%" y1="100%" x2="100%" y2="0%">
+        <linearGradient id="clogo_green_bottom" x1="0%" y1="100%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#34d399" />
           <stop offset="100%" stopColor="#059669" />
         </linearGradient>
-        <linearGradient id="corvix_grad_dark" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="clogo_dark_top" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#334155" />
           <stop offset="100%" stopColor="#0f172a" />
         </linearGradient>
@@ -34,25 +38,25 @@ export function CorvixLogo({ size = 48, className = '' }: CorvixLogoProps) {
         {/* Top Dark Vault Arch */}
         <path
           d="M 256 80 L 380 152 L 380 220 L 256 148 L 132 220 L 132 152 Z"
-          fill="url(#corvix_grad_dark)"
+          fill="url(#clogo_dark_top)"
         />
 
         {/* Left Vibrant Emerald Facet */}
         <path
           d="M 120 168 L 244 240 L 244 360 L 120 288 Z"
-          fill="url(#corvix_grad_emerald1)"
+          fill="url(#clogo_green_left)"
         />
 
-        {/* Right Obsidian Facet */}
+        {/* Right Deep Emerald Facet (Balanced & High Contrast) */}
         <path
           d="M 392 168 L 392 288 L 268 360 L 268 240 Z"
-          fill="#1e293b"
+          fill="url(#clogo_green_right)"
         />
 
-        {/* Bottom Emerald Shield Wing */}
+        {/* Bottom Emerald Shield Anchor */}
         <path
           d="M 256 432 L 132 360 L 132 292 L 256 364 L 380 292 L 380 360 Z"
-          fill="url(#corvix_grad_emerald2)"
+          fill="url(#clogo_green_bottom)"
         />
 
         {/* Center Emerald Diamond Core */}
@@ -61,11 +65,11 @@ export function CorvixLogo({ size = 48, className = '' }: CorvixLogoProps) {
           fill="#10b981"
         />
 
-        {/* Center Inner White Diamond Accent */}
+        {/* Center Brilliant White Diamond */}
         <polygon
           points="256,226 290,256 256,286 222,256"
           fill="#ffffff"
-          opacity="0.95"
+          opacity="0.98"
         />
       </g>
     </svg>
