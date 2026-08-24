@@ -205,27 +205,39 @@ export default function VouchersPage() {
       {selectedVoucher && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-fade-in-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-sm text-slate-900">Detalle de Comprobante</h3>
-              <button onClick={() => setSelectedVoucher(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer">✕</button>
-            </div>
+            {/* Image Preview if available */}
+            {selectedVoucher.imageUrl && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1.5">
+                  <ImageIcon size={14} className="text-emerald-600" />
+                  Foto / Captura del Voucher:
+                </span>
+                <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-64 flex items-center justify-center">
+                  <img
+                    src={selectedVoucher.imageUrl}
+                    alt="Foto del comprobante"
+                    className="w-full h-full max-h-64 object-contain"
+                  />
+                </div>
+              </div>
+            )}
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2 text-xs pt-1">
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Valor de la Transacción:</span>
                 <span className="font-black text-slate-900 text-sm">{formatCOP(selectedVoucher.operation?.amount || 0)}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">N° de Operación:</span>
-                <span className="font-bold font-mono">{selectedVoucher.qrOperationNum || selectedVoucher.operation?.operationNumber || 'No disponible'}</span>
+                <span className="font-bold font-mono">{selectedVoucher.qrOperationNum || selectedVoucher.ocrOperationNum || selectedVoucher.operation?.operationNumber || 'No disponible'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Referencia:</span>
-                <span className="font-bold font-mono">{selectedVoucher.qrReference || selectedVoucher.operation?.reference || 'No disponible'}</span>
+                <span className="font-bold font-mono">{selectedVoucher.qrReference || selectedVoucher.ocrReference || selectedVoucher.operation?.reference || 'No disponible'}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Entidad / Banco:</span>
-                <span className="font-bold">{selectedVoucher.qrEntity || 'No disponible'}</span>
+                <span className="font-bold">{selectedVoucher.qrEntity || selectedVoucher.ocrEntity || 'No disponible'}</span>
               </div>
             </div>
 

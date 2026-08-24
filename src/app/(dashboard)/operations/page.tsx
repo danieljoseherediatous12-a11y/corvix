@@ -414,6 +414,22 @@ export default function OperationsPage() {
                   <span className="font-mono font-bold">{selectedOp.reference}</span>
                 </div>
               )}
+              {selectedOp.voucher?.imageUrl && (
+                <div className="space-y-1.5 pt-2 pb-1">
+                  <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1.5">
+                    <FileText size={14} className="text-emerald-600" />
+                    Comprobante / Ticket Escaneado:
+                  </span>
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-56 flex items-center justify-center">
+                    <img
+                      src={selectedOp.voucher.imageUrl}
+                      alt="Comprobante de operación"
+                      className="w-full h-full max-h-56 object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-500">Fecha y Hora:</span>
                 <span>{formatDateTime(selectedOp.operatedAt)}</span>
