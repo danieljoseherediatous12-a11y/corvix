@@ -138,66 +138,63 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // If voucherData was attached, create the linked Voucher record
-  if (voucherData) {
-    try {
-      const qr = voucherData.qrData;
-      const ocr = voucherData.ocrData;
-      const scannedImage: string | undefined = voucherData.scannedImage;
+  // Always ensure a linked Voucher record is created for every operation
+  try {
+    const qr = voucherData?.qrData;
+    const ocr = voucherData?.ocrData;
+    const scannedImage: string | undefined = voucherData?.scannedImage;
 
-      // If image is a base64 data URL, save it directly
-      let imageUrl: string | undefined = undefined;
-      let imageMimeType: string | undefined = undefined;
-      let imageSize: number | undefined = undefined;
+    // If image is a base64 data URL, save it directly
+    let imageUrl: string | undefined = undefined;
+    let imageMimeType: string | undefined = undefined;
+    let imageSize: number | undefined = undefined;
 
-      if (scannedImage && scannedImage.startsWith("data:image")) {
-        imageUrl = scannedImage; // store as data URL (base64) in DB
-        const mimeMatch = scannedImage.match(/^data:(image\/[a-z]+);base64,/);
-        imageMimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
-        // Estimate size in bytes (base64 is ~4/3 of original)
-        const base64Data = scannedImage.split(",")[1] || "";
-        imageSize = Math.round((base64Data.length * 3) / 4);
-      }
-
-      await prisma.voucher.create({
-        data: {
-          operationId: operation.id,
-          status: "REGISTRADO",
-          qrRaw: qr?.raw || undefined,
-          qrOperationNum: qr?.operationNumber || undefined,
-          qrReference: qr?.reference || undefined,
-          qrTransactionId: qr?.transactionId || undefined,
-          qrAmount: qr?.amount ? parseInt(String(qr.amount)) : undefined,
-          qrDate: qr?.date || undefined,
-          qrTime: qr?.time || undefined,
-          qrType: qr?.type || undefined,
-          qrStatus: qr?.status || undefined,
-          qrEntity: qr?.entity || undefined,
-          qrCommerce: qr?.commerce || undefined,
-          qrAuthCode: qr?.authCode || undefined,
-          qrScanned: !!qr,
-          qrScannedAt: qr ? new Date() : undefined,
-          ocrText: ocr?.text || undefined,
-          ocrAmount: ocr?.amount ? parseInt(String(ocr.amount)) : undefined,
-          ocrDate: ocr?.date || undefined,
-          ocrTime: ocr?.time || undefined,
-          ocrReference: ocr?.reference || undefined,
-          ocrOperationNum: ocr?.operationNum || undefined,
-          ocrStatus: ocr?.status || undefined,
-          ocrEntity: ocr?.entity || undefined,
-          ocrCompleted: !!ocr?.text,
-          ocrCompletedAt: ocr?.text ? new Date() : undefined,
-          // Save the captured image
-          imageUrl: imageUrl || undefined,
-          imageMimeType: imageMimeType || undefined,
-          imageSize: imageSize || undefined,
-          imageSavedAt: imageUrl ? new Date() : undefined,
-          scannedAt: new Date(),
-        },
-      });
-    } catch (e) {
-      console.warn("Could not create attached voucher:", e);
+    if (scannedImage && scannedImage.startsWith("data:image")) {
+      imageUrl = scannedImage;
+      const mimeMatch = scannedImage.match(/^data:(image\/[a-z]+);base64,/);
+      imageMimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const base64Data = scannedImage.split(",")[1] || "";
+      imageSize = Math.round((base64Data.length * 3) / 4);
     }
+
+    await prisma.voucher.create({
+      data: {
+        operationId: operation.id,
+        status: "REGISTRADO",
+        qrRaw: qr?.raw || undefined,
+        qrOperationNum: qr?.operationNumber || operationNumber || voucherNumber || undefined,
+        qrReference: qr?.reference || reference || undefined,
+        qrTransactionId: qr?.transactionId || undefined,
+        qrAmount: qr?.amount ? parseInt(String(qr.amount)) : numAmount,
+        qrDate: qr?.date || undefined,
+        qrTime: qr?.time || undefined,
+        qrType: qr?.type || type,
+        qrStatus: qr?.status || undefined,
+        qrEntity: qr?.entity || undefined,
+        qrCommerce: qr?.commerce || undefined,
+        qrAuthCode: qr?.authCode || undefined,
+        qrScanned: !!qr,
+        qrScannedAt: qr ? new Date() : undefined,
+        ocrText: ocr?.text || undefined,
+        ocrAmount: ocr?.amount ? parseInt(String(ocr.amount)) : numAmount,
+        ocrDate: ocr?.date || undefined,
+        ocrTime: ocr?.time || undefined,
+        ocrReference: ocr?.reference || reference || undefined,
+        ocrOperationNum: ocr?.operationNumber || ocr?.operationNum || operationNumber || voucherNumber || undefined,
+        ocrStatus: ocr?.status || undefined,
+        ocrEntity: ocr?.entity || undefined,
+        ocrCompleted: !!ocr?.text || !!scannedImage,
+        ocrCompletedAt: ocr?.text || scannedImage ? new Date() : undefined,
+        // Save the captured image
+        imageUrl: imageUrl || undefined,
+        imageMimeType: imageMimeType || undefined,
+        imageSize: imageSize || undefined,
+        imageSavedAt: imageUrl ? new Date() : undefined,
+        scannedAt: new Date(),
+      },
+    });
+  } catch (e) {
+    console.warn("Could not create attached voucher:", e);
   }
 
 

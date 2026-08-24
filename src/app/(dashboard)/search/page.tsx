@@ -25,9 +25,17 @@ export default function SearchPage() {
       qrOperationNum?: string;
       qrTransactionId?: string;
       qrAmount?: number;
+      qrEntity?: string;
+      ocrReference?: string;
+      ocrOperationNum?: string;
+      ocrEntity?: string;
+      imageUrl?: string;
       operation: {
+        id: string;
         amount: number;
         type: string;
+        reference?: string;
+        operationNumber?: string;
         category?: { name: string };
       };
     }>;
@@ -127,24 +135,54 @@ export default function SearchPage() {
 
             {/* Vouchers */}
             <div className="space-y-3">
-              <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Comprobantes ({results.vouchers.length})</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wider">Comprobantes ({results.vouchers.length})</h3>
+                <Link href="/vouchers" className="text-xs text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1">
+                  <span>Ver todos</span>
+                  <ArrowRight size={12} />
+                </Link>
+              </div>
               {results.vouchers.length === 0 ? (
                 <div className="p-6 bg-white border border-slate-200/90 rounded-2xl text-slate-400 text-xs text-center shadow-2xs">
                   Sin vouchers coincidentes
                 </div>
               ) : (
                 <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs overflow-hidden divide-y divide-slate-100">
-                  {results.vouchers.map((v) => (
-                    <div key={v.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
-                      <div>
-                        <div className="font-bold text-slate-900 text-sm">Op #{v.qrOperationNum || 'S/N'}</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">Ref: {v.qrReference || 'N/A'}</div>
-                      </div>
-                      <div className="font-black text-sm text-slate-900">
-                        {formatCOP(v.qrAmount || v.operation?.amount || 0)}
-                      </div>
-                    </div>
-                  ))}
+                  {results.vouchers.map((v) => {
+                    const refNumber = v.qrReference || v.ocrReference || v.operation?.reference || 'Sin Ref';
+                    const opNum = v.qrOperationNum || v.ocrOperationNum || v.operation?.operationNumber || 'S/N';
+                    const entity = v.ocrEntity || v.qrEntity || v.operation?.category?.name || 'Comprobante';
+
+                    return (
+                      <Link
+                        key={v.id}
+                        href="/vouchers"
+                        className="p-4 flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-2xl bg-slate-100 text-slate-700 shrink-0">
+                            <FileText size={18} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-sm">Op #{opNum}</span>
+                              {v.imageUrl && (
+                                <span className="text-[10px] bg-emerald-50 text-emerald-700 font-black px-1.5 py-0.5 rounded-md border border-emerald-200">
+                                  📸 Foto
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                              Ref: {refNumber} • <span className="text-slate-400 font-sans">{entity}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="font-black text-sm text-slate-900">
+                          {formatCOP(v.qrAmount || v.operation?.amount || 0)}
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
