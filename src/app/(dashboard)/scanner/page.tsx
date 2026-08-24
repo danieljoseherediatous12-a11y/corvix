@@ -30,32 +30,44 @@ interface OCRResult {
 // Canvas preprocessor to enhance thermal paper contrast before OCR
 function preprocessCanvasImage(canvas: HTMLCanvasElement): string {
   const ctx = canvas.getContext('2d');
-  if (!ctx) return canvas.toDataURL('image/jpeg', 0.9);
+  if (!ctx) return canvas.toDataURL('image/jpeg', 0.95);
 
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imgData.data;
 
-  // Grayscale and contrast stretch for thermal paper
+  // 1. Calculate average brightness
+  let sumGray = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    sumGray += gray;
+  }
+  const avgBrightness = sumGray / (data.length / 4);
+
+  // 2. Dynamic threshold based on image brightness
+  const threshold = Math.max(90, Math.min(160, avgBrightness - 15));
+
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
-    // High contrast thresholding (turns grayish thermal text crisp black and background white)
-    if (gray < 140) {
-      gray = Math.max(0, gray - 50);
+    // High-definition crisp text enhancement for faint thermal ink
+    if (gray < threshold) {
+      // Dark text -> pitch black
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
     } else {
-      gray = Math.min(255, gray + 40);
+      // Paper background -> pure white
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
     }
-
-    data[i] = gray;
-    data[i + 1] = gray;
-    data[i + 2] = gray;
   }
 
   ctx.putImageData(imgData, 0, 0);
-  return canvas.toDataURL('image/jpeg', 0.9);
+  return canvas.toDataURL('image/jpeg', 0.95);
 }
 
 export default function ScannerPage() {
