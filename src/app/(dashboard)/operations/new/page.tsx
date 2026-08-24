@@ -291,12 +291,14 @@ export default function NewOperationPage() {
                     <div className="space-y-0.5">
                       <div className="text-xl font-black text-emerald-800 flex items-center gap-1.5">
                         <span>+{formatCOP(effectiveFee)}</span>
-                        <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
-                          Ganancia Neta
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          effectiveFee === 0 ? 'bg-slate-200 text-slate-700' : 'bg-emerald-600 text-white'
+                        }`}>
+                          {effectiveFee === 0 ? 'Exento / Sin Comisión' : 'Ganancia Neta'}
                         </span>
                       </div>
                       <p className="text-[11px] text-emerald-700/90 font-medium">
-                        Tabla oficial: {amountValue <= 500000 ? 'Hasta $500.000 ($1.000)' : amountValue <= 1000000 ? '$501k a $1M ($2.000)' : amountValue <= 1500000 ? '$1M a $1.5M ($3.000)' : amountValue <= 2000000 ? '$1.5M a $2M ($4.000)' : amountValue <= 2500000 ? '$2M a $2.5M ($5.000)' : 'Más de $2.5M ($6.000+)'}
+                        Tabla oficial: {amountValue < 50000 ? 'Menor a $50.000 (Sin comisión / $0)' : amountValue < 500000 ? 'De $50.000 a $499.999 ($1.000)' : amountValue < 1000000 ? 'De $500.000 a $999.999 ($2.000)' : amountValue < 1500000 ? 'De $1.000.000 a $1.499.999 ($3.000)' : amountValue < 2000000 ? 'De $1.500.000 a $1.999.999 ($4.000)' : amountValue < 2500000 ? 'De $2.000.000 a $2.499.999 ($5.000)' : amountValue < 3000000 ? 'De $2.500.000 a $2.999.999 ($6.000)' : 'De $3.000.000 en adelante ($6.000 + $1.000 por cada $500k)'}
                       </p>
                     </div>
 
