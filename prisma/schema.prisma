@@ -100,6 +100,9 @@ model CashSession {
   closing    DailyClosing?
 
   @@index([date])
+  @@index([status])
+  @@index([date, status])
+  @@index([openedById])
   @@map("cash_sessions")
 }
 
@@ -131,6 +134,13 @@ model Operation {
   user     User               @relation(fields: [userId], references: [id])
   voucher  Voucher?
 
+  @@index([sessionId])
+  @@index([userId])
+  @@index([operatedAt])
+  @@index([status])
+  @@index([type])
+  @@index([reference])
+  @@index([sessionId, status])
   @@map("operations")
 }
 
@@ -186,6 +196,10 @@ model Voucher {
 
   operation Operation @relation(fields: [operationId], references: [id])
 
+  @@index([status])
+  @@index([scannedAt])
+  @@index([qrReference])
+  @@index([ocrReference])
   @@map("vouchers")
 }
 
@@ -209,6 +223,9 @@ model CashCount {
   user    User            @relation(fields: [userId], references: [id])
   details CashCountDetail[]
 
+  @@index([sessionId])
+  @@index([userId])
+  @@index([countedAt])
   @@map("cash_counts")
 }
 
@@ -224,6 +241,7 @@ model CashCountDetail {
 
   cashCount CashCount @relation(fields: [cashCountId], references: [id])
 
+  @@index([cashCountId])
   @@map("cash_count_details")
 }
 
@@ -255,6 +273,8 @@ model DailyClosing {
   session CashSession @relation(fields: [sessionId], references: [id])
   user    User        @relation(fields: [userId], references: [id])
 
+  @@index([date])
+  @@index([userId])
   @@map("daily_closings")
 }
 

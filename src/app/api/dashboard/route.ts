@@ -20,15 +20,6 @@ export async function GET(req: NextRequest) {
   const sessionId = searchParams.get("sessionId");
 
   const sessionInclude = {
-    operations: {
-      where: { status: { not: "CANCELADA" } },
-      include: {
-        category: true,
-        user: { select: { id: true, name: true } },
-        voucher: true,
-      },
-      orderBy: { operatedAt: "desc" as const },
-    },
     cashCounts: {
       include: { details: true },
       orderBy: { countedAt: "desc" as const },
@@ -77,11 +68,51 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const operations = cashSession.operations;
-  const totalIncome = calculateTotalIncome(operations);
-  const totalExpense = calculateTotalExpense(operations);
-  const totalFees = calculateTotalFees(operations);
-  const expectedCash = calculateExpectedCash(cashSession.initialCash, operations);
+  const [
+    incomeAgg,
+    expenseAgg,
+    opsCount,
+    opsWithoutVoucherCount,
+    pendingVouchersCount,
+    recentOperations,
+  ] = await Promise.all([
+    prisma.operation.aggregate({
+      where: { sessionId: cashSession.id, type: "INGRESO", status: { not: "CANCELADA" } },
+      _sum: { amount: true, fee: true },
+    }),
+    prisma.operation.aggregate({
+      where: { sessionId: cashSession.id, type: "EGRESO", status: { not: "CANCELADA" } },
+      _sum: { amount: true, fee: true },
+    }),
+    prisma.operation.count({
+      where: { sessionId: cashSession.id, status: { not: "CANCELADA" } },
+    }),
+    prisma.operation.count({
+      where: { sessionId: cashSession.id, status: { not: "CANCELADA" }, voucher: null },
+    }),
+    prisma.voucher.count({
+      where: {
+        operation: { sessionId: cashSession.id, status: { not: "CANCELADA" } },
+        status: { in: ["PENDIENTE", "FALTA"] },
+      },
+    }),
+    prisma.operation.findMany({
+      where: { sessionId: cashSession.id },
+      include: {
+        category: true,
+        user: { select: { id: true, name: true } },
+        voucher: true,
+      },
+      orderBy: { operatedAt: "desc" },
+      take: 10,
+    }),
+  ]);
+
+  const totalIncome = incomeAgg._sum.amount || 0;
+  const totalExpense = expenseAgg._sum.amount || 0;
+  const totalFees = (incomeAgg._sum.fee || 0) + (expenseAgg._sum.fee || 0);
+  const netFlow = totalIncome - totalExpense;
+  const expectedCash = cashSession.initialCash + netFlow;
 
   // Latest cash count
   const latestCount = cashSession.cashCounts[0];
@@ -93,22 +124,17 @@ export async function GET(req: NextRequest) {
   // Alerts
   const alerts: Array<{ type: string; message: string; severity: string }> = [];
 
-  const operationsWithoutVoucher = operations.filter((op) => !op.voucher).length;
-  const pendingVouchers = operations.filter(
-    (op) => op.voucher?.status === "PENDIENTE" || op.voucher?.status === "FALTA"
-  ).length;
-
-  if (operationsWithoutVoucher > 0) {
+  if (opsWithoutVoucherCount > 0) {
     alerts.push({
       type: "SIN_COMPROBANTE",
-      message: `${operationsWithoutVoucher} operación(es) sin comprobante`,
+      message: `${opsWithoutVoucherCount} operación(es) sin comprobante`,
       severity: "WARNING",
     });
   }
-  if (pendingVouchers > 0) {
+  if (pendingVouchersCount > 0) {
     alerts.push({
       type: "VOUCHER_PENDIENTE",
-      message: `${pendingVouchers} voucher(s) pendiente(s)`,
+      message: `${pendingVouchersCount} voucher(s) pendiente(s)`,
       severity: "WARNING",
     });
   }
@@ -126,9 +152,6 @@ export async function GET(req: NextRequest) {
       severity: "WARNING",
     });
   }
-  if (!cashSession.closing && date === getTodayString()) {
-    // Check if it's past closing time (optional alert)
-  }
 
   const summary = {
     date,
@@ -140,7 +163,7 @@ export async function GET(req: NextRequest) {
     countedCash: countedCash ?? null,
     difference: latestCount ? difference : null,
     cashStatus: latestCount ? cashStatus : null,
-    operationsCount: operations.length,
+    operationsCount: opsCount,
     sessionStatus: cashSession.status,
     sessionId: cashSession.id,
     isClosed: cashSession.status === "CERRADA" || !!cashSession.closing,
@@ -152,6 +175,6 @@ export async function GET(req: NextRequest) {
     session: cashSession,
     summary,
     alerts,
-    recentOperations: operations.slice(0, 10),
+    recentOperations,
   });
 }
