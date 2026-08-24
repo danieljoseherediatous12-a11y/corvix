@@ -202,31 +202,89 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Se requiere imagen o texto OCR" }, { status: 400 });
     }
 
-    // Check for AI Vision Key (Gemini API)
-    const geminiKeySetting = await prisma.setting.findUnique({ where: { key: "GEMINI_API_KEY" } });
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || geminiKeySetting?.value;
-
-    if (apiKey && imageBase64) {
-      try {
-        const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
-        const prompt = `Analiza este comprobante / voucher de corresponsal bancario en Colombia (Redeban, Credibanco, Bancolombia, Nequi, Daviplata, Efecty, Davivienda, etc.).
+    const prompt = `Analiza este comprobante / voucher de corresponsal bancario en Colombia (Redeban, Credibanco, Bancolombia, Nequi, Daviplata, Efecty, Davivienda, etc.).
 Extrae con 100% de precisión y fidelidad la información en formato JSON estricto:
 {
-  "entity": "Nombre del banco o red (ej: Bancolombia, Nequi, Daviplata, Davivienda, Efecty, Redeban, etc.)",
+  "entity": "Nombre del banco o red (ej: Bancolombia, Nequi, Daviplata, Davivienda, Efecty, Redeban, Credibanco, etc.)",
   "type": "INGRESO si es depósito/consignación/recaudo/pago, o EGRESO si es retiro/entrega de dinero",
   "categoryName": "Recaudo, Consignación, Retiro, Pago factura o Recarga",
-  "amount": valor_numerico_sin_puntos_ni_signos (ej: 1000000 para $ 1.000.000),
-  "operationNumber": "Numero de comprobante, aprobacion o transaccion (solo el codigo/numero, sin palabras de encabezado)",
-  "reference": "Numero de referencia, convenio, cuenta o celular (solo el numero)",
-  "authCode": "Codigo de autorizacion si existe",
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM:SS",
+  "amount": valor_numerico_entero_sin_puntos_ni_signos (ej: 1000000 para $ 1.000.000 o 50000 para $ 50.000),
+  "operationNumber": "Solo el numero/codigo de comprobante, aprobacion o transaccion. NO incluyas palabras como BANCOLOMBIA, CORRESPONSAL, SANCOLOMBIA, REDEBAN, CREDIBANCO ni el nombre del banco.",
+  "reference": "Solo el numero de referencia, convenio, cuenta, celular o documento (solo digitos, sin texto)",
+  "authCode": "Codigo de autorizacion si existe, sino null",
+  "date": "YYYY-MM-DD o null",
+  "time": "HH:MM:SS o null",
   "status": "EXITOSA o RECHAZADA"
 }
-Responde UNICAMENTE con el objeto JSON válido.`;
+Responde UNICAMENTE con el objeto JSON válido, sin texto adicional.`;
+
+    // === LAYER 1: GROQ VISION (Qwen2.5-VL) - Fastest & Free ===
+    const groqKeySetting = await prisma.setting.findUnique({ where: { key: "GROQ_API_KEY" } });
+    const groqApiKey = process.env.GROQ_API_KEY || groqKeySetting?.value;
+
+    if (groqApiKey && imageBase64) {
+      try {
+        const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+        const mimeMatch = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+
+        const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${groqApiKey}`,
+          },
+          body: JSON.stringify({
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: prompt },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${mimeType};base64,${cleanBase64}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            temperature: 0.05,
+            max_tokens: 512,
+            response_format: { type: "json_object" },
+          }),
+        });
+
+        if (groqResponse.ok) {
+          const groqData = await groqResponse.json();
+          const content = groqData?.choices?.[0]?.message?.content;
+          if (content) {
+            const parsedJson = JSON.parse(content);
+            return NextResponse.json({
+              result: {
+                ...parsedJson,
+                engine: "AI_VISION_GROQ",
+                confidence: 0.99,
+              },
+            });
+          }
+        }
+      } catch (groqErr) {
+        console.warn("Groq Vision fallback:", groqErr);
+      }
+    }
+
+    // === LAYER 2: GEMINI VISION (Google AI) - Fallback ===
+    const geminiKeySetting = await prisma.setting.findUnique({ where: { key: "GEMINI_API_KEY" } });
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || geminiKeySetting?.value;
+
+    if (geminiApiKey && imageBase64) {
+      try {
+        const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
 
         const aiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -235,19 +293,11 @@ Responde UNICAMENTE con el objeto JSON válido.`;
                 {
                   parts: [
                     { text: prompt },
-                    {
-                      inlineData: {
-                        mimeType: "image/jpeg",
-                        data: cleanBase64,
-                      },
-                    },
+                    { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
                   ],
                 },
               ],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.1,
-              },
+              generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
             }),
           }
         );
@@ -258,20 +308,16 @@ Responde UNICAMENTE con el objeto JSON válido.`;
           if (candidateText) {
             const parsedJson = JSON.parse(candidateText);
             return NextResponse.json({
-              result: {
-                ...parsedJson,
-                engine: "AI_VISION",
-                confidence: 0.99,
-              },
+              result: { ...parsedJson, engine: "AI_VISION_GEMINI", confidence: 0.99 },
             });
           }
         }
       } catch (aiErr) {
-        console.warn("AI Vision fallback to Heuristic OCR:", aiErr);
+        console.warn("Gemini Vision fallback to Heuristic OCR:", aiErr);
       }
     }
 
-    // Fallback: Robust Colombian Heuristic Regex Parser
+    // === LAYER 3: Colombian Heuristic OCR (Always available, no API needed) ===
     const heuristicResult = parseColombianVoucherText(rawText || "");
     return NextResponse.json({ result: heuristicResult });
   } catch (error) {
