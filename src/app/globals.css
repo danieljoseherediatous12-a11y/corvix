@@ -83,3 +83,64 @@ body {
 .animate-pulse-glow {
   animation: pulseGlow 4s ease-in-out infinite;
 }
+
+/* =====================================================
+   PRINT OPTIMIZATIONS (CORVIX FINANCIAL SUMMARY RECEIPT)
+   ===================================================== */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 10mm 12mm;
+    size: letter portrait;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10.5pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide application shell */
+  aside,
+  header,
+  nav,
+  button,
+  .no-print,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Hide interactive screen UI */
+  .screen-only {
+    display: none !important;
+  }
+
+  /* Show high-fidelity printable document */
+  .print-only {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Reset main layouts and scrollable areas for printing */
+  main,
+  div,
+  section {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Prevent awkward page breaks inside tables and key summary cards */
+  .page-break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+

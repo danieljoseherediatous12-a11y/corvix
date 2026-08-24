@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCOP } from '@/lib/calculations';
+import { CorvixLogo } from '@/components/ui/CorvixLogo';
 import {
   ArrowLeft,
   FileText,
@@ -191,53 +192,71 @@ export default function HistoryDetailPage() {
     day: 'numeric',
   });
 
+  const catMap: Record<string, { name: string; type: string; count: number; total: number; fees: number }> = {};
+  for (const op of operations) {
+    const name = op.category?.name || (op.type === 'INGRESO' ? 'Ingreso General' : 'Egreso General');
+    if (!catMap[name]) {
+      catMap[name] = { name, type: op.type, count: 0, total: 0, fees: 0 };
+    }
+    catMap[name].count++;
+    catMap[name].total += op.amount;
+    catMap[name].fees += op.fee || 0;
+  }
+  const categoriesSummary = Object.values(catMap);
+
+  const closingTimeStr = closing.closedAt
+    ? new Date(closing.closedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })
+    : 'Jornada en curso';
+
   return (
-    <div className="w-full space-y-6 pb-28">
-      {/* HEADER WITH ACTIONS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => router.push('/history')}
-            className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
-            title="Volver"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 capitalize tracking-tight">
-                {dateLabel}
-              </h1>
-              <span
-                className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider ${
-                  isCuadrado
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : isSobrante
-                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                    : 'bg-rose-100 text-rose-800 border border-rose-300'
-                }`}
-              >
-                {closing.status}
-              </span>
+    <>
+      {/* SCREEN ONLY: INTERACTIVE UI */}
+      <div className="screen-only w-full space-y-6 pb-28">
+        {/* HEADER WITH ACTIONS */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/history')}
+              className="p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
+              title="Volver"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 capitalize tracking-tight">
+                  {dateLabel}
+                </h1>
+                <span
+                  className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider ${
+                    isCuadrado
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : isSobrante
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-rose-100 text-rose-800 border border-rose-300'
+                  }`}
+                >
+                  {closing.status}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-2">
+                <span>Cerrado por: <strong>{closing.user?.name || 'Propietario'}</strong></span>
+                <span>•</span>
+                <span>Hora de Cierre: {closingTimeStr}</span>
+              </p>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-2">
-              <span>Cerrado por: <strong>{closing.user?.name || 'Propietario'}</strong></span>
-              <span>•</span>
-              <span>Hora de Cierre: {new Date(closing.closedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
-            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition cursor-pointer shadow-sm"
+            >
+              <Printer size={16} />
+              <span>Imprimir Resumen Formal</span>
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black transition cursor-pointer"
-          >
-            <Printer size={16} />
-            <span>Imprimir Resumen</span>
-          </button>
-        </div>
-      </div>
 
       {/* 6 KEY METRICS DASHBOARD */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -748,6 +767,226 @@ export default function HistoryDetailPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+
+      {/* =======================================================
+          PRINTABLE DOCUMENT (CONSOLIDATED FINANCIAL SUMMARY)
+          Rendered exclusively during @media print (Clean & Professional)
+          ======================================================= */}
+      <div className="print-only text-slate-900 font-sans p-2">
+        {/* Document Header */}
+        <div className="border-b-2 border-slate-900 pb-4 mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl p-1.5 flex items-center justify-center">
+              <CorvixLogo size={42} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">
+                CORVIX • CORRESPONSAL BANCARIO
+              </h1>
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                Informe Diario de Cuadre de Caja y Resumen Operativo
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs font-mono font-bold text-slate-700">
+              Jornada: {closing.date}
+            </div>
+            <div className="text-[10px] text-slate-500 font-mono">
+              Emisión: {new Date().toLocaleDateString('es-CO')} - {new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })}
+            </div>
+          </div>
+        </div>
+
+        {/* General Information Box */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-5 grid grid-cols-4 gap-4 text-xs page-break-inside-avoid">
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Fecha Jornada</span>
+            <span className="font-black text-slate-900 capitalize text-sm">{dateLabel}</span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Cajero / Operador</span>
+            <span className="font-bold text-slate-900 text-sm">{closing.user?.name || 'Daniel'}</span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Estado Cuadre</span>
+            <span className={`font-black text-sm uppercase ${
+              isCuadrado ? 'text-emerald-700' : isSobrante ? 'text-amber-700' : 'text-rose-700'
+            }`}>
+              {closing.status}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Hora de Cierre</span>
+            <span className="font-bold text-slate-900 text-sm">{closingTimeStr}</span>
+          </div>
+        </div>
+
+        {/* Financial Executive Summary Box */}
+        <div className="mb-5 page-break-inside-avoid">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 mb-2.5">
+            1. Balance y Flujo de Efectivo en Caja
+          </h2>
+          <table className="w-full text-xs border-collapse">
+            <tbody>
+              <tr className="border-b border-slate-200">
+                <td className="py-2 px-3 font-semibold text-slate-600">Base Apertura de Caja (Efectivo Inicial):</td>
+                <td className="py-2 px-3 text-right font-bold text-slate-900">{formatCOP(closing.initialCash)}</td>
+                <td className="py-2 px-3 font-semibold text-slate-600">Efectivo Teórico Esperado en Caja:</td>
+                <td className="py-2 px-3 text-right font-black text-slate-900">{formatCOP(closing.expectedCash)}</td>
+              </tr>
+              <tr className="border-b border-slate-200 bg-slate-50/70">
+                <td className="py-2 px-3 font-semibold text-emerald-800">(+) Total Ingresos Recibidos (Entradas):</td>
+                <td className="py-2 px-3 text-right font-black text-emerald-700">+{formatCOP(closing.totalIncome)}</td>
+                <td className="py-2 px-3 font-semibold text-slate-700">Efectivo Real Contado (Arqueo Físico):</td>
+                <td className="py-2 px-3 text-right font-black text-slate-900">{formatCOP(closing.countedCash)}</td>
+              </tr>
+              <tr className="border-b border-slate-200">
+                <td className="py-2 px-3 font-semibold text-rose-800">(-) Total Egresos / Retiros (Salidas):</td>
+                <td className="py-2 px-3 text-right font-black text-rose-700">-{formatCOP(closing.totalExpense)}</td>
+                <td className="py-2 px-3 font-bold text-slate-800">Diferencia de Cuadre:</td>
+                <td className={`py-2 px-3 text-right font-black ${
+                  closing.difference === 0 ? 'text-emerald-700' : closing.difference > 0 ? 'text-amber-700' : 'text-rose-700'
+                }`}>
+                  {closing.difference >= 0 ? '+' : ''}{formatCOP(closing.difference)} ({closing.status})
+                </td>
+              </tr>
+              <tr className="bg-emerald-50/50">
+                <td className="py-2 px-3 font-black text-emerald-900">Total Ganancias Comisiones Corresponsal:</td>
+                <td className="py-2 px-3 text-right font-black text-emerald-800 text-sm">+{formatCOP(closing.totalFees || 0)}</td>
+                <td className="py-2 px-3 font-semibold text-slate-600">Total Transacciones Registradas:</td>
+                <td className="py-2 px-3 text-right font-black text-slate-900">{operations.length}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Consolidado por Categoría */}
+        {categoriesSummary.length > 0 && (
+          <div className="mb-5 page-break-inside-avoid">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 mb-2.5">
+              2. Consolidado por Tipo de Operación
+            </h2>
+            <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+              <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                <tr>
+                  <th className="py-1.5 px-3 text-left">Concepto / Tipo</th>
+                  <th className="py-1.5 px-3 text-center">Tipo Flujo</th>
+                  <th className="py-1.5 px-3 text-center">Cant. Operaciones</th>
+                  <th className="py-1.5 px-3 text-right">Monto Total</th>
+                  <th className="py-1.5 px-3 text-right">Comisiones Ganadas</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {categoriesSummary.map((c) => (
+                  <tr key={c.name} className="hover:bg-slate-50">
+                    <td className="py-1.5 px-3 font-bold text-slate-900">{c.name}</td>
+                    <td className="py-1.5 px-3 text-center font-bold text-[10px]">
+                      <span className={c.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'}>
+                        {c.type}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-3 text-center font-semibold">{c.count}</td>
+                    <td className={`py-1.5 px-3 text-right font-black ${c.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {c.type === 'INGRESO' ? '+' : '-'}{formatCOP(c.total)}
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-bold text-emerald-800">
+                      +{formatCOP(c.fees)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Detailed Operations Table */}
+        <div className="mb-6">
+          <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 mb-2.5">
+            3. Registro Cronológico de Transacciones ({operations.length})
+          </h2>
+          <table className="w-full text-[11px] border border-slate-200 rounded-lg overflow-hidden">
+            <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+              <tr>
+                <th className="py-1.5 px-2 text-center w-8">#</th>
+                <th className="py-1.5 px-2 text-left">Hora</th>
+                <th className="py-1.5 px-2 text-left">Tipo / Operación</th>
+                <th className="py-1.5 px-2 text-left">Referencia / Op#</th>
+                <th className="py-1.5 px-2 text-right">Monto</th>
+                <th className="py-1.5 px-2 text-right">Comisión</th>
+                <th className="py-1.5 px-2 text-center">Comprobante</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {operations.map((op, idx) => (
+                <tr key={op.id} className="page-break-inside-avoid">
+                  <td className="py-1.5 px-2 text-center text-slate-400 font-mono">{idx + 1}</td>
+                  <td className="py-1.5 px-2 text-slate-600 font-mono text-[10px]">
+                    {new Date(op.operatedAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                  </td>
+                  <td className="py-1.5 px-2 font-bold text-slate-900">
+                    {op.category?.name || op.type}
+                  </td>
+                  <td className="py-1.5 px-2 text-slate-600 font-mono text-[10px]">
+                    {op.reference || op.operationNumber || 'S/N'}
+                  </td>
+                  <td className={`py-1.5 px-2 text-right font-black ${
+                    op.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'
+                  }`}>
+                    {op.type === 'INGRESO' ? '+' : '-'}{formatCOP(op.amount)}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-bold text-emerald-800">
+                    +{formatCOP(op.fee || 0)}
+                  </td>
+                  <td className="py-1.5 px-2 text-center text-[10px] font-bold">
+                    {op.voucher ? '✅ Registrado' : '⚠️ Sin Voucher'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Physical Cash Count Breakdown (If Available) */}
+        {latestArqueo && latestArqueo.details && latestArqueo.details.length > 0 && (
+          <div className="mb-6 page-break-inside-avoid">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-1 mb-2.5">
+              4. Desglose de Billetes y Monedas (Arqueo Físico)
+            </h2>
+            <div className="grid grid-cols-3 gap-2">
+              {latestArqueo.details.map((d) => (
+                <div key={d.denomination} className="p-2 border border-slate-200 rounded-lg flex justify-between text-xs">
+                  <span className="font-semibold text-slate-600">{formatCOP(d.denomination)} x {d.quantity}</span>
+                  <span className="font-bold text-slate-900">{formatCOP(d.subtotal)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Formal Signature Area & Audit Footer */}
+        <div className="pt-8 mt-6 border-t-2 border-slate-300 page-break-inside-avoid">
+          <div className="grid grid-cols-2 gap-16 mb-6">
+            <div className="text-center">
+              <div className="border-b border-slate-400 pb-12" />
+              <p className="font-black text-xs text-slate-900 mt-2">Cajero / Operador Responsable</p>
+              <p className="text-[10px] text-slate-500 font-mono">Nombre: {closing.user?.name || 'Daniel'}</p>
+            </div>
+            <div className="text-center">
+              <div className="border-b border-slate-400 pb-12" />
+              <p className="font-black text-xs text-slate-900 mt-2">Supervisor / Propietario</p>
+              <p className="text-[10px] text-slate-500 font-mono">Firma y Sello de Aprobación</p>
+            </div>
+          </div>
+
+          <div className="text-center border-t border-slate-100 pt-3">
+            <p className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
+              CORVIX • Software de Control Inteligente de Caja y Corresponsales Bancarios • Registro Inalterable
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
