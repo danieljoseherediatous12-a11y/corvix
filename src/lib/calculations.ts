@@ -47,7 +47,7 @@ export const OFFICIAL_COMMISSION_BRACKETS: CommissionBracket[] = [
   { min: 1000000, max: 1499999, fee: 3000, label: "De $1.000.000 a $1.499.999" },
   { min: 1500000, max: 1999999, fee: 4000, label: "De $1.500.000 a $1.999.999" },
   { min: 2000000, max: 2499999, fee: 5000, label: "De $2.000.000 a $2.499.999" },
-  { min: 2500000, max: 2999999, fee: 6000, label: "De $2.500.000 a $2.999.999" },
+  { min: 2500000, max: 999999999999, fee: 6000, label: "De $2.500.000 en adelante (Tope $6.000)" },
 ];
 
 /**
@@ -58,11 +58,11 @@ export const OFFICIAL_COMMISSION_BRACKETS: CommissionBracket[] = [
  * De $1.000.000 a $1.499.999    -> $3.000
  * De $1.500.000 a $1.999.999    -> $4.000
  * De $2.000.000 a $2.499.999    -> $5.000
- * De $2.500.000 a $2.999.999    -> $6.000
- * De $3.000.000 en adelante     -> $6.000 + $1.000 por cada $500.000 adicionales
+ * De $2.500.000 en adelante     -> $6.000 (Tope máximo fijo)
  */
 export function calculateCommission(amount: number): number {
   if (amount < 50000) return 0;
+  if (amount >= 2500000) return 6000;
 
   for (const bracket of OFFICIAL_COMMISSION_BRACKETS) {
     if (amount >= bracket.min && amount <= bracket.max) {
@@ -70,13 +70,7 @@ export function calculateCommission(amount: number): number {
     }
   }
 
-  // A partir de $3.000.000: $6.000 base + $1.000 por cada $500.000 adicionales
-  if (amount >= 3000000) {
-    const extraBlocks = Math.floor((amount - 3000000) / 500000);
-    return 6000 + extraBlocks * 1000;
-  }
-
-  return 0;
+  return 6000;
 }
 
 // =====================================================

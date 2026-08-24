@@ -298,7 +298,7 @@ export default function NewOperationPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-emerald-700/90 font-medium">
-                        Tabla oficial: {amountValue < 50000 ? 'Menor a $50.000 (Sin comisión / $0)' : amountValue < 500000 ? 'De $50.000 a $499.999 ($1.000)' : amountValue < 1000000 ? 'De $500.000 a $999.999 ($2.000)' : amountValue < 1500000 ? 'De $1.000.000 a $1.499.999 ($3.000)' : amountValue < 2000000 ? 'De $1.500.000 a $1.999.999 ($4.000)' : amountValue < 2500000 ? 'De $2.000.000 a $2.499.999 ($5.000)' : amountValue < 3000000 ? 'De $2.500.000 a $2.999.999 ($6.000)' : 'De $3.000.000 en adelante ($6.000 + $1.000 por cada $500k)'}
+                        Tabla oficial: {amountValue < 50000 ? 'Menor a $50.000 (Sin comisión / $0)' : amountValue < 500000 ? 'De $50.000 a $499.999 ($1.000)' : amountValue < 1000000 ? 'De $500.000 a $999.999 ($2.000)' : amountValue < 1500000 ? 'De $1.000.000 a $1.499.999 ($3.000)' : amountValue < 2000000 ? 'De $1.500.000 a $1.999.999 ($4.000)' : amountValue < 2500000 ? 'De $2.000.000 a $2.499.999 ($5.000)' : 'De $2.500.000 en adelante ($6.000 Tope Máximo)'}
                       </p>
                     </div>
 
