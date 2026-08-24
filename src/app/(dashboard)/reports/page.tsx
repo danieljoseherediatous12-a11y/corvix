@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { formatCOP } from '@/lib/calculations';
-import { BarChart3, TrendingUp, TrendingDown, Calendar, Download, ArrowDownRight, ArrowUpRight, FileText, Layers, Wallet } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Calendar, Download, ArrowDownRight, ArrowUpRight, FileText, Layers, Wallet, RefreshCw } from 'lucide-react';
 
 interface ReportData {
   summary: {
@@ -80,14 +80,14 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Reportes Financieros</h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">Consolidado de ingresos, egresos y balances de caja</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Period Selector */}
           <div className="flex gap-1 bg-slate-200/70 p-1 rounded-2xl border border-slate-200">
             {(['daily', 'weekly', 'monthly'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                   type === t ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -97,11 +97,19 @@ export default function ReportsPage() {
           </div>
 
           <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 transition shadow-2xs cursor-pointer"
+            onClick={loadReport}
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+            title="Actualizar datos"
           >
-            <Download size={15} />
-            <span>Exportar CSV</span>
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 transition shadow-2xs cursor-pointer"
+          >
+            <Download size={14} />
+            <span className="hidden sm:inline">Exportar CSV</span>
           </button>
         </div>
       </div>
@@ -186,7 +194,7 @@ export default function ReportsPage() {
               </div>
               {report.closings.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs font-medium">
-                  No hay cierres para este período
+                  No hay movimientos registrados para este período
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -194,13 +202,27 @@ export default function ReportsPage() {
                     <div key={c.date} className="px-6 py-4 flex items-center justify-between text-sm hover:bg-slate-50/70 transition">
                       <div>
                         <div className="font-bold text-slate-900 capitalize">
-                          {new Date(c.date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          {new Date(c.date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' })}
                         </div>
-                        <div className="text-xs text-slate-400">{c.operationsCount} operaciones • Estado: <strong>{c.status}</strong></div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                          <span>{c.operationsCount} operaciones</span>
+                          <span>•</span>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            c.status.includes('ABIERTA') || c.status.includes('EN CURSO')
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : c.status === 'CUADRADO'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-emerald-700 font-bold">+{formatCOP(c.totalIncome)}</div>
-                        <div className="text-xs text-rose-700 font-bold">-{formatCOP(c.totalExpense)}</div>
+                        <div className="text-xs text-emerald-700 font-black">+{formatCOP(c.totalIncome)}</div>
+                        {c.totalExpense > 0 && (
+                          <div className="text-xs text-rose-700 font-black">-{formatCOP(c.totalExpense)}</div>
+                        )}
                       </div>
                     </div>
                   ))}
