@@ -227,12 +227,32 @@ export default function SettingsPage() {
               Parámetros de Aplicación Móvil
             </h3>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-4 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Clave de Inteligencia Artificial (Gemini API Key)</span>
+                  <span>Clave Groq AI (Groq API Key)</span>
                   <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">
-                    Visión 100% Precisión
+                    ⚡ Ultra Rápida
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  disabled={!isAuthorized}
+                  value={settings.GROQ_API_KEY || ''}
+                  onChange={(e) => setSettings({ ...settings, GROQ_API_KEY: e.target.value })}
+                  placeholder="gsk_..."
+                  className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Permite usar los modelos de Groq (Qwen 3.6 / Llama) para extracción rápida.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Clave Google Gemini Vision (Opcional)</span>
+                  <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md">
+                    Visión Google
                   </span>
                 </label>
                 <input
@@ -240,18 +260,18 @@ export default function SettingsPage() {
                   disabled={!isAuthorized}
                   value={settings.GEMINI_API_KEY || ''}
                   onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY: e.target.value })}
-                  placeholder="Pega aquí tu clave de Google AI Studio (Opcional)"
+                  placeholder="AIzaSy..."
                   className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Permite que la app use Visión Artificial de Google en la nube para leer vouchers arrugados, térmicos o borrosos con 100% de exactitud humana.
+                  Visión Artificial de Google para comprobantes borrosos o difíciles.
                 </p>
               </div>
 
               <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70">
                 <div>
-                  <div className="font-bold text-slate-900">Modo Offline PWA</div>
-                  <div className="text-slate-400 text-[11px]">Sincronización de transacciones activada</div>
+                  <div className="font-bold text-slate-900">Motor OCR Local Colombiano</div>
+                  <div className="text-slate-400 text-[11px]">Redeban, Bancolombia, Nequi, Daviplata</div>
                 </div>
                 <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
                   Activo
