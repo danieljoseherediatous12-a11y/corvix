@@ -59,14 +59,13 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [noSession, setNoSession] = useState(false);
 
-  const fetchDashboard = async (isBackground = false) => {
-    if (!isBackground) {
-      if (!summary) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
+  const fetchDashboard = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else if (!summary) {
+      setLoading(true);
     }
+
     try {
       const res = await fetch('/api/dashboard');
       const data = await res.json();
@@ -86,13 +85,9 @@ export default function DashboardPage() {
     }
   };
 
+  // Only fetch on initial page load (NO automatic timers or reload loops)
   useEffect(() => {
     fetchDashboard(false);
-    // Silent background poll every 45s without showing full-screen spinner
-    const interval = setInterval(() => {
-      fetchDashboard(true);
-    }, 45000);
-    return () => clearInterval(interval);
   }, []);
 
   const today = new Date().toLocaleDateString('es-CO', {
