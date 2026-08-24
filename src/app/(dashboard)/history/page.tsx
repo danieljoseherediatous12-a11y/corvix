@@ -18,6 +18,7 @@ interface DailyClosing {
   operationsCount: number;
   closedAt: string;
   user: { name: string };
+  isClosed?: boolean;
 }
 
 export default function HistoryPage() {
@@ -74,15 +75,16 @@ export default function HistoryPage() {
                       {dateLabel}
                     </span>
                     <span className="text-[11px] text-slate-400 mt-0.5 block">
-                      Cerrado por {closing.user?.name}
+                      {closing.isClosed ? `Cerrado por ${closing.user?.name}` : `Abierto por ${closing.user?.name}`}
                     </span>
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md shrink-0 ${
-                    isCuadrado ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                    closing.status === 'CUADRADO' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
                     closing.status === 'SOBRANTE' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                    closing.status === 'EN_CURSO' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
                     'bg-rose-50 text-rose-700 border border-rose-200'
                   }`}>
-                    {closing.status}
+                    {closing.status === 'EN_CURSO' ? 'EN CURSO' : closing.status}
                   </span>
                 </div>
 
