@@ -78,6 +78,8 @@ export default function OwnerPage() {
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState<TeamMember | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<TeamMember | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   
   // New user form
   const [newName, setNewName] = useState('');
@@ -262,6 +264,35 @@ export default function OwnerPage() {
       setActionError('Error de conexión');
     } finally {
       setResettingPass(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: TeamMember) => {
+    setActionError(null);
+    setActionSuccess(null);
+    setDeletingUser(true);
+
+    try {
+      const res = await fetch(`/api/users?id=${user.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setActionError(data.error || 'Error al eliminar usuario');
+        setDeletingUser(false);
+        return;
+      }
+
+      setActionSuccess(data.message || `Usuario "${user.name}" eliminado correctamente`);
+      setShowDeleteModal(null);
+      loadTeam();
+    } catch (e) {
+      console.error(e);
+      setActionError('Error de conexión con el servidor al eliminar usuario');
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -633,18 +664,29 @@ export default function OwnerPage() {
                         </button>
 
                         {!isCurrent && (
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUserStatus(member)}
-                            className={`p-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                              member.active
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            }`}
-                            title={member.active ? 'Desactivar Usuario' : 'Activar Usuario'}
-                          >
-                            {member.active ? <UserX size={14} /> : <UserCheck size={14} />}
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUserStatus(member)}
+                              className={`p-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                member.active
+                                  ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              }`}
+                              title={member.active ? 'Desactivar Usuario' : 'Activar Usuario'}
+                            >
+                              {member.active ? <UserX size={14} /> : <UserCheck size={14} />}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setShowDeleteModal(member)}
+                              className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition cursor-pointer"
+                              title="Eliminar Usuario"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -863,6 +905,59 @@ export default function OwnerPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE CONFIRMATION */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-100 rounded-xl text-rose-700">
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">Eliminar Usuario</h3>
+                  <p className="text-[11px] text-slate-400">Confirmación de seguridad</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-slate-600">
+              <p>
+                ¿Estás seguro de que deseas eliminar permanentemente a <strong className="text-slate-900 font-bold">{showDeleteModal.name}</strong> ({showDeleteModal.email})?
+              </p>
+              <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 leading-relaxed">
+                ⚠️ Si el usuario no tiene operaciones financieras, se eliminará por completo del sistema.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => handleDeleteUser(showDeleteModal)}
+                className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+              >
+                {deletingUser ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>{deletingUser ? 'Eliminando...' : 'Sí, Eliminar'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

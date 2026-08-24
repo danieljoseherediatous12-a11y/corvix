@@ -207,7 +207,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/users - Delete user (or deactivate)
+// DELETE /api/users - Delete user
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
@@ -229,28 +229,32 @@ export async function DELETE(req: NextRequest) {
 
     const currentUserId = (session.user as { id?: string }).id;
     if (id === currentUserId) {
-      return NextResponse.json({ error: "No puedes eliminar tu propia cuenta" }, { status: 400 });
+      return NextResponse.json({ error: "No puedes eliminar tu propia cuenta activa" }, { status: 400 });
     }
 
-    // Check if user has operations before hard delete
+    // Check if user has operations before deleting
     const userOperationsCount = await prisma.operation.count({ where: { userId: id } });
 
     if (userOperationsCount > 0) {
-      // Soft-delete (deactivate) to preserve financial integrity and audit history
+      // If user has financial operations, deactivate to preserve audit history and balance integrity
       await prisma.user.update({
         where: { id },
         data: { active: false },
       });
       return NextResponse.json({
-        message: "El usuario tiene operaciones registradas. Se ha desactivado el acceso para preservar el historial financiero.",
+        message: `El usuario tiene ${userOperationsCount} operaciones registradas. Se ha desactivado el acceso para preservar el historial financiero.`,
       });
     }
 
+    // Clean up audit logs associated with this user before hard delete
+    await prisma.auditLog.deleteMany({ where: { userId: id } }).catch(() => {});
+    await prisma.cashSession.deleteMany({ where: { openedById: id, operations: { none: {} } } }).catch(() => {});
+
     await prisma.user.delete({ where: { id } });
 
-    return NextResponse.json({ message: "Usuario eliminado correctamente" });
+    return NextResponse.json({ message: "Usuario eliminado exitosamente" });
   } catch (error) {
     console.error("Error deleting user:", error);
-    return NextResponse.json({ error: "Error al eliminar el usuario" }, { status: 500 });
+    return NextResponse.json({ error: "Error al eliminar el usuario de la base de datos" }, { status: 500 });
   }
 }
