@@ -16,36 +16,6 @@ export async function GET(req: NextRequest) {
 
   const search = q.trim();
 
-  // Auto-backfill unlinked operations to ensure vouchers always appear in search
-  try {
-    const unlinkedOperations = await prisma.operation.findMany({
-      where: { voucher: null },
-      take: 50,
-    });
-
-    if (unlinkedOperations.length > 0) {
-      await Promise.all(
-        unlinkedOperations.map((op) =>
-          prisma.voucher.create({
-            data: {
-              operationId: op.id,
-              status: "REGISTRADO",
-              qrReference: op.reference || undefined,
-              qrOperationNum: op.operationNumber || op.voucherNumber || undefined,
-              qrAmount: op.amount,
-              ocrReference: op.reference || undefined,
-              ocrOperationNum: op.operationNumber || op.voucherNumber || undefined,
-              ocrAmount: op.amount,
-              scannedAt: op.operatedAt,
-            },
-          }).catch(() => {})
-        )
-      );
-    }
-  } catch (e) {
-    console.warn("Search backfill error:", e);
-  }
-
   // Search operations
   const operations = await prisma.operation.findMany({
     where: {

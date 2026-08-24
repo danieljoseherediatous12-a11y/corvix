@@ -10,36 +10,6 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  // Auto-backfill any operations that were created without a Voucher record
-  try {
-    const unlinkedOperations = await prisma.operation.findMany({
-      where: { voucher: null },
-      take: 50,
-    });
-
-    if (unlinkedOperations.length > 0) {
-      await Promise.all(
-        unlinkedOperations.map((op) =>
-          prisma.voucher.create({
-            data: {
-              operationId: op.id,
-              status: "REGISTRADO",
-              qrReference: op.reference || undefined,
-              qrOperationNum: op.operationNumber || op.voucherNumber || undefined,
-              qrAmount: op.amount,
-              ocrReference: op.reference || undefined,
-              ocrOperationNum: op.operationNumber || op.voucherNumber || undefined,
-              ocrAmount: op.amount,
-              scannedAt: op.operatedAt,
-            },
-          }).catch(() => {})
-        )
-      );
-    }
-  } catch (e) {
-    console.warn("Backfill error:", e);
-  }
-
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
   const sessionId = searchParams.get("sessionId");
