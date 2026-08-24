@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import {
   Settings, Building2, Wifi, DollarSign, Tag, Users, CheckCircle2,
   ShieldCheck, Smartphone, Save, Coins, Percent, Table
@@ -108,6 +109,28 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Configuración del Sistema</h1>
         <p className="text-xs text-slate-500 font-medium mt-0.5">Parámetros del corresponsal, tabla de comisiones y aplicación móvil</p>
       </div>
+
+      {isAuthorized && (
+        <div className="bg-slate-900 rounded-3xl p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-slate-800 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Users size={20} />
+            </div>
+            <div>
+              <h3 className="font-black text-sm text-white">Equipo y Vendedores</h3>
+              <p className="text-xs text-slate-400">Crea cuentas para que tus vendedores solo registren y escaneen vouchers</p>
+            </div>
+          </div>
+
+          <Link
+            href="/owner"
+            className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer self-start sm:self-auto"
+          >
+            <span>Gestionar Equipo</span>
+            <Users size={14} />
+          </Link>
+        </div>
+      )}
 
       {saved && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fade-in-up shadow-2xs">
