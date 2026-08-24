@@ -225,6 +225,62 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
   return result;
 }
 
+// Sanitize and fix the AI result — especially the amount field
+function sanitizeAIResult(raw: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...raw };
+
+  // Fix amount: AI sometimes returns "3.000.000", "3,000,000", "$3.000.000", 3000.0, etc.
+  if (sanitized.amount !== undefined && sanitized.amount !== null) {
+    let amtStr = String(sanitized.amount);
+    // Remove $ sign and spaces
+    amtStr = amtStr.replace(/[$\s]/g, "");
+
+    // If it looks like a Colombian formatted number with dots (e.g. "3.000.000")
+    // count the dots — if multiple dots, they are thousands separators
+    const dotCount = (amtStr.match(/\./g) || []).length;
+    const commaCount = (amtStr.match(/,/g) || []).length;
+
+    if (dotCount > 1) {
+      // Multiple dots = thousands separators → remove all dots
+      amtStr = amtStr.replace(/\./g, "");
+    } else if (dotCount === 1 && commaCount === 0) {
+      // Single dot — could be decimal OR thousands separator
+      const parts = amtStr.split(".");
+      if (parts[1] && parts[1].length === 3) {
+        // e.g. "3.000" → thousands separator → remove dot
+        amtStr = amtStr.replace(".", "");
+      } else {
+        // e.g. "3000.50" → decimal → take integer part
+        amtStr = parts[0];
+      }
+    } else if (commaCount >= 1) {
+      // Comma as decimal separator (European) e.g. "3.000,00" or "3000,00"
+      amtStr = amtStr.replace(/\./g, "").split(",")[0];
+    }
+
+    const parsed = parseInt(amtStr.replace(/[^0-9]/g, ""), 10);
+    if (!isNaN(parsed) && parsed >= 1000 && parsed < 500_000_000) {
+      sanitized.amount = parsed;
+    } else if (!isNaN(parsed) && parsed > 0 && parsed < 1000) {
+      // Suspiciously small — could be misread thousands (e.g. AI returned 3296 for $3.000.000)
+      // If rawText hint available, keep as 0 so user fills it manually
+      sanitized.amount = 0;
+    }
+  }
+
+  // Ensure operationNumber is clean digits only
+  if (sanitized.operationNumber) {
+    const opStr = String(sanitized.operationNumber).trim();
+    // Remove if it contains bank name words
+    const badWords = ["BANCOLOMBIA", "CORRESPONSAL", "REDEBAN", "CREDIBANCO", "SANCOLOMBIA", "CLIENTE", "DEBE"];
+    if (badWords.some((w) => opStr.toUpperCase().includes(w))) {
+      sanitized.operationNumber = null;
+    }
+  }
+
+  return sanitized;
+}
+
 // POST /api/vouchers/analyze - High-precision AI Vision & Heuristic OCR Analysis
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -238,23 +294,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Se requiere imagen o texto OCR" }, { status: 400 });
     }
 
-    const prompt = `Analiza este comprobante / voucher de corresponsal bancario en Colombia (Redeban, Credibanco, Bancolombia, Nequi, Daviplata, Efecty, Davivienda, etc.).
-Extrae con 100% de precisión y fidelidad la información en formato JSON estricto:
-{
-  "entity": "Nombre del banco o red (ej: Bancolombia, Nequi, Daviplata, Davivienda, Efecty, Redeban, Credibanco, etc.)",
-  "type": "INGRESO si es depósito/consignación/recaudo/pago, o EGRESO si es retiro/entrega de dinero",
-  "categoryName": "Recaudo, Consignación, Retiro, Pago factura o Recarga",
-  "amount": valor_numerico_entero_sin_puntos_ni_signos (ej: 1000000 para $ 1.000.000 o 50000 para $ 50.000),
-  "operationNumber": "Solo el numero/codigo de comprobante, aprobacion o transaccion. NO incluyas palabras como BANCOLOMBIA, CORRESPONSAL, SANCOLOMBIA, REDEBAN, CREDIBANCO ni el nombre del banco.",
-  "reference": "Solo el numero de referencia, convenio, cuenta, celular o documento (solo digitos, sin texto)",
-  "authCode": "Codigo de autorizacion si existe, sino null",
-  "date": "YYYY-MM-DD o null",
-  "time": "HH:MM:SS o null",
-  "status": "EXITOSA o RECHAZADA"
-}
-Responde UNICAMENTE con el objeto JSON válido, sin texto adicional.`;
+    const prompt = `Eres un experto en vouchers de corresponsal bancario colombiano. Analiza la imagen del comprobante y extrae los datos exactos.
 
-    // === LAYER 1: GROQ VISION (Qwen2.5-VL) - Fastest & Free ===
+REGLAS IMPORTANTES PARA COLOMBIA:
+- Los números usan PUNTO como separador de miles: 3.000.000 = tres millones, 50.000 = cincuenta mil
+- El campo "amount" debe ser un ENTERO SIN PUNTOS NI COMAS: 3000000 para tres millones, 50000 para cincuenta mil
+- El monto está usualmente en la línea que dice "VALOR" o "TOTAL"
+- El número de comprobante/aprobación son solo dígitos cortos (4-10 digitos), NO incluyas el nombre del banco
+
+Responde SOLO con JSON válido, sin explicaciones:
+{
+  "entity": "nombre del banco o red: Bancolombia, Nequi, Daviplata, Davivienda, Efecty, Redeban, etc.",
+  "type": "INGRESO para depósito/consignación/recaudo/pago, EGRESO para retiro/entrega",
+  "categoryName": "Recaudo | Consignación | Retiro | Pago factura | Recarga",
+  "amount": NUMERO_ENTERO_SIN_PUNTOS (ejemplo: si ves $3.000.000 escribe 3000000, si ves $50.000 escribe 50000),
+  "operationNumber": "solo los digitos del número de comprobante o aprobación (sin palabras)",
+  "reference": "numero de referencia, convenio, cuenta o celular (solo digitos)",
+  "date": "YYYY-MM-DD o null",
+  "time": "HH:MM o null",
+  "status": "EXITOSA o RECHAZADA"
+}`;
+
+    // === LAYER 1: GROQ VISION - Fastest & Free ===
     const groqKeySetting = await prisma.setting.findUnique({ where: { key: "GROQ_API_KEY" } });
     const groqApiKey = process.env.GROQ_API_KEY || groqKeySetting?.value;
 
@@ -279,9 +340,7 @@ Responde UNICAMENTE con el objeto JSON válido, sin texto adicional.`;
                   { type: "text", text: prompt },
                   {
                     type: "image_url",
-                    image_url: {
-                      url: `data:${mimeType};base64,${cleanBase64}`,
-                    },
+                    image_url: { url: `data:${mimeType};base64,${cleanBase64}` },
                   },
                 ],
               },
@@ -296,13 +355,9 @@ Responde UNICAMENTE con el objeto JSON válido, sin texto adicional.`;
           const groqData = await groqResponse.json();
           const content = groqData?.choices?.[0]?.message?.content;
           if (content) {
-            const parsedJson = JSON.parse(content);
+            const parsedJson = sanitizeAIResult(JSON.parse(content));
             return NextResponse.json({
-              result: {
-                ...parsedJson,
-                engine: "AI_VISION_GROQ",
-                confidence: 0.99,
-              },
+              result: { ...parsedJson, engine: "AI_VISION_GROQ", confidence: 0.99 },
             });
           }
         }
@@ -342,7 +397,7 @@ Responde UNICAMENTE con el objeto JSON válido, sin texto adicional.`;
           const aiData = await aiResponse.json();
           const candidateText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candidateText) {
-            const parsedJson = JSON.parse(candidateText);
+            const parsedJson = sanitizeAIResult(JSON.parse(candidateText));
             return NextResponse.json({
               result: { ...parsedJson, engine: "AI_VISION_GEMINI", confidence: 0.99 },
             });
