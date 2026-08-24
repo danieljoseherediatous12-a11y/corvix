@@ -157,14 +157,6 @@ export default function SettingsPage() {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-emerald-50/40">
-                <td className="py-3 px-4 font-bold text-slate-800" colSpan={2}>
-                  Mayor a $3.000.000 (Bloques de $500.000)
-                </td>
-                <td className="py-3 px-4 text-right font-black text-emerald-800">
-                  +$6.000 + $1.000 c/u
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -236,7 +228,25 @@ export default function SettingsPage() {
             </h3>
 
             <div className="space-y-3 text-xs">
-
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Clave de Inteligencia Artificial (Gemini API Key)</span>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">
+                    Visión 100% Precisión
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  disabled={!isAuthorized}
+                  value={settings.GEMINI_API_KEY || ''}
+                  onChange={(e) => setSettings({ ...settings, GEMINI_API_KEY: e.target.value })}
+                  placeholder="Pega aquí tu clave de Google AI Studio (Opcional)"
+                  className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Permite que la app use Visión Artificial de Google en la nube para leer vouchers arrugados, térmicos o borrosos con 100% de exactitud humana.
+                </p>
+              </div>
 
               <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70">
                 <div>
