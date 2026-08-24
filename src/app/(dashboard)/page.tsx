@@ -56,10 +56,17 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [recentOps, setRecentOps] = useState<Operation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [noSession, setNoSession] = useState(false);
 
-  const fetchDashboard = async () => {
-    setLoading(true);
+  const fetchDashboard = async (isBackground = false) => {
+    if (!isBackground) {
+      if (!summary) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+    }
     try {
       const res = await fetch('/api/dashboard');
       const data = await res.json();
@@ -75,12 +82,16 @@ export default function DashboardPage() {
       console.error(e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboard();
-    const interval = setInterval(fetchDashboard, 30000);
+    fetchDashboard(false);
+    // Silent background poll every 45s without showing full-screen spinner
+    const interval = setInterval(() => {
+      fetchDashboard(true);
+    }, 45000);
     return () => clearInterval(interval);
   }, []);
 
@@ -88,7 +99,7 @@ export default function DashboardPage() {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  if (loading) {
+  if (loading && !summary) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
@@ -169,11 +180,11 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchDashboard}
+            onClick={() => fetchDashboard(false)}
             className="inline-flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold shadow-2xs transition cursor-pointer"
           >
-            <RefreshCw size={14} className="text-slate-500" />
-            <span>Actualizar</span>
+            <RefreshCw size={14} className={`text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Actualizando...' : 'Actualizar'}</span>
           </button>
           {!isClosed ? (
             <Link
