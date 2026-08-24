@@ -99,7 +99,7 @@ model CashSession {
   cashCounts CashCount[]
   closing    DailyClosing?
 
-  @@unique([date])
+  @@index([date])
   @@map("cash_sessions")
 }
 

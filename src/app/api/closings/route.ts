@@ -114,8 +114,9 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. If no formal closing exists, fallback to cashSession for that date
-    const cashSession = await prisma.cashSession.findUnique({
+    const cashSession = await prisma.cashSession.findFirst({
       where: { date },
+      orderBy: { openedAt: "desc" },
       include: {
         operations: {
           include: {

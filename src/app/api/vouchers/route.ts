@@ -47,8 +47,10 @@ export async function GET(req: NextRequest) {
     const opWhere: Record<string, unknown> = {};
     if (sessionId) opWhere.sessionId = sessionId;
     if (date && !sessionId) {
-      const daySession = await prisma.cashSession.findUnique({ where: { date } });
-      if (daySession) opWhere.sessionId = daySession.id;
+      const daySessions = await prisma.cashSession.findMany({ where: { date }, select: { id: true } });
+      if (daySessions.length > 0) {
+        opWhere.sessionId = { in: daySessions.map((s) => s.id) };
+      }
     }
     where.operation = { ...opWhere };
   }

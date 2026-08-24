@@ -17,29 +17,49 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || getTodayString();
+  const sessionId = searchParams.get("sessionId");
 
-  // Get today's session
-  const cashSession = await prisma.cashSession.findUnique({
-    where: { date },
-    include: {
-      operations: {
-        where: { status: { not: "CANCELADA" } },
-        include: {
-          category: true,
-          user: { select: { id: true, name: true } },
-          voucher: true,
-        },
-        orderBy: { operatedAt: "desc" },
+  const sessionInclude = {
+    operations: {
+      where: { status: { not: "CANCELADA" } },
+      include: {
+        category: true,
+        user: { select: { id: true, name: true } },
+        voucher: true,
       },
-      cashCounts: {
-        include: { details: true },
-        orderBy: { countedAt: "desc" },
-        take: 1,
-      },
-      closing: true,
-      openedBy: { select: { id: true, name: true } },
+      orderBy: { operatedAt: "desc" as const },
     },
-  });
+    cashCounts: {
+      include: { details: true },
+      orderBy: { countedAt: "desc" as const },
+      take: 1,
+    },
+    closing: true,
+    openedBy: { select: { id: true, name: true } },
+  };
+
+  let cashSession = sessionId
+    ? await prisma.cashSession.findUnique({
+        where: { id: sessionId },
+        include: sessionInclude,
+      })
+    : null;
+
+  if (!cashSession) {
+    cashSession = await prisma.cashSession.findFirst({
+      where: { date, status: "ABIERTA" },
+      orderBy: { openedAt: "desc" },
+      include: sessionInclude,
+    });
+  }
+
+  if (!cashSession) {
+    cashSession = await prisma.cashSession.findFirst({
+      where: { date },
+      orderBy: { openedAt: "desc" },
+      include: sessionInclude,
+    });
+  }
 
   if (!cashSession) {
     // Check for last closing

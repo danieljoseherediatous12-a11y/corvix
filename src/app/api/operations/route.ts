@@ -24,8 +24,10 @@ export async function GET(req: NextRequest) {
   if (status) where.status = status;
 
   if (date && !sessionId) {
-    const daySession = await prisma.cashSession.findUnique({ where: { date } });
-    if (daySession) where.sessionId = daySession.id;
+    const daySessions = await prisma.cashSession.findMany({ where: { date }, select: { id: true } });
+    if (daySessions.length > 0) {
+      where.sessionId = { in: daySessions.map((s) => s.id) };
+    }
   }
 
   const [operations, total] = await Promise.all([
@@ -82,8 +84,11 @@ export async function POST(req: NextRequest) {
     if (active) {
       activeSessionId = active.id;
     } else {
-      const today = new Date().toISOString().split("T")[0];
-      const existingToday = await prisma.cashSession.findUnique({ where: { date: today } });
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+      const existingToday = await prisma.cashSession.findFirst({
+        where: { date: today, status: "ABIERTA" },
+        orderBy: { openedAt: "desc" },
+      });
       if (existingToday) {
         activeSessionId = existingToday.id;
       } else {
