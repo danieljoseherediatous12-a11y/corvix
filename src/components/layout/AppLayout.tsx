@@ -4,7 +4,8 @@ import { useSession } from "next-auth/react"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import InstallPWA from "@/components/ui/InstallPWA"
-import { Loader2 } from "lucide-react"
+import Link from "next/link"
+import { Loader2, ShieldAlert } from "lucide-react"
 import { CorvixLogo } from "@/components/ui/CorvixLogo"
 
 interface AppLayoutProps {
@@ -40,6 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const rawRole = getUserRole(session)
   const roleDisplay = formatRoleName(rawRole)
+  const isOwner = ['DUENO', 'DUEÑO', 'ADMIN'].includes(String(rawRole || '').toUpperCase())
   const name = session?.user?.name ?? "Daniel"
   const email = session?.user?.email ?? ""
 
@@ -73,6 +75,15 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
           
           <div className="flex items-center gap-1.5">
+            {isOwner && (
+              <Link
+                href="/owner"
+                className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-black px-2.5 py-1 rounded-xl shadow-xs flex items-center gap-1 transition"
+              >
+                <ShieldAlert size={12} className="text-emerald-400" />
+                <span>Panel Dueño</span>
+              </Link>
+            )}
             <span className="bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-[11px] font-black px-2.5 py-1 rounded-xl shadow-2xs">
               {roleDisplay}
             </span>

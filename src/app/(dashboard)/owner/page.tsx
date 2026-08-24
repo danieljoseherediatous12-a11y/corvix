@@ -96,7 +96,9 @@ export default function OwnerPage() {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const userRole = (session?.user as { role?: string })?.role;
+  const rawUserRole = (session?.user as { role?: string })?.role;
+  const normalizedRole = String(rawUserRole || '').toUpperCase();
+  const isOwner = normalizedRole === 'DUENO' || normalizedRole === 'DUEÑO' || normalizedRole === 'ADMIN';
   const currentUserId = (session?.user as { id?: string })?.id;
 
   const loadTeam = async () => {
@@ -115,7 +117,7 @@ export default function OwnerPage() {
   };
 
   useEffect(() => {
-    if (userRole !== 'DUENO' && userRole !== 'ADMIN') return;
+    if (!isOwner) return;
 
     const loadData = async () => {
       setLoading(true);
@@ -139,15 +141,15 @@ export default function OwnerPage() {
     };
 
     loadData();
-  }, [period, userRole]);
+  }, [period, isOwner]);
 
   useEffect(() => {
-    if (activeTab === 'team') {
+    if (activeTab === 'team' && isOwner) {
       loadTeam();
     }
-  }, [activeTab]);
+  }, [activeTab, isOwner]);
 
-  if (userRole !== 'DUENO' && userRole !== 'ADMIN') {
+  if (!isOwner) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center bg-white p-8 rounded-2xl border border-slate-200 shadow-sm max-w-sm">

@@ -57,7 +57,8 @@ export function Sidebar({
   userRole = 'OPERADOR',
 }: SidebarProps) {
   const pathname = usePathname();
-  const isOwner = userRole === 'DUENO' || userRole === 'ADMIN';
+  const normalizedRole = String(userRole || '').toUpperCase();
+  const isOwner = normalizedRole === 'DUENO' || normalizedRole === 'DUEÑO' || normalizedRole === 'ADMIN';
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/' || pathname === '/dashboard';
