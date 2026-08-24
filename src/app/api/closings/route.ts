@@ -10,10 +10,71 @@ import {
 } from "@/lib/calculations";
 import { createAuditLog } from "@/lib/audit";
 
+function getColombiaDateStr(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(date);
+}
+
 // GET /api/closings - Get all closings/sessions history or specific date
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  // Auto-clean past open sessions (only today can be EN_CURSO)
+  try {
+    const todayStr = getColombiaDateStr();
+    const pastOpenSessions = await prisma.cashSession.findMany({
+      where: {
+        date: { lt: todayStr },
+        status: "ABIERTA",
+      },
+      include: {
+        operations: true,
+        closing: true,
+      },
+    });
+
+    for (const s of pastOpenSessions) {
+      if (s.operations.length === 0 && !s.closing) {
+        // Remove empty abandoned past sessions
+        await prisma.cashSession.delete({ where: { id: s.id } }).catch(() => {});
+      } else if (s.operations.length > 0 && !s.closing) {
+        // Auto-close past sessions that had operations
+        const activeOps = s.operations.filter((o) => o.status !== "CANCELADA");
+        const totalIncome = calculateTotalIncome(activeOps);
+        const totalExpense = calculateTotalExpense(activeOps);
+        const totalFees = calculateTotalFees(activeOps);
+        const expectedCash = calculateExpectedCash(s.initialCash, activeOps);
+
+        await prisma.dailyClosing.create({
+          data: {
+            sessionId: s.id,
+            userId: s.openedById,
+            date: s.date,
+            initialCash: s.initialCash,
+            totalIncome,
+            totalExpense,
+            totalFees,
+            expectedCash,
+            countedCash: expectedCash,
+            difference: 0,
+            status: "CUADRADO",
+            operationsCount: activeOps.length,
+            vouchersCount: activeOps.length,
+            pendingVouchers: 0,
+            operationsNoVoucher: 0,
+            notes: "Cierre automático de jornada anterior",
+          },
+        }).catch(() => {});
+
+        await prisma.cashSession.update({
+          where: { id: s.id },
+          data: { status: "CERRADA", closedAt: new Date() },
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {
+    console.warn("Session cleanup error:", e);
+  }
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
