@@ -310,32 +310,76 @@ export default function ScannerPage() {
   const runAnalysis = async (imageDataUrl: string, existingQR?: ParsedQRData) => {
     setStep('ocr');
     clearCountdown();
-    setAnalysisStatus('Extrayendo texto y analizando con Inteligencia Artificial...');
-
-    let rawText = '';
-    try {
-      const Tesseract = (await import('tesseract.js')).default;
-      const { data } = await Tesseract.recognize(imageDataUrl, 'spa+eng', {
-        logger: () => {},
-      });
-      rawText = data.text;
-    } catch (tessErr) {
-      console.warn('Local OCR warning:', tessErr);
-    }
+    setAnalysisStatus('Analizando comprobante con Inteligencia Artificial...');
 
     try {
-      setAnalysisStatus('Verificando banco, montos y número de operación...');
+      // 1. Direct Cloud AI Vision (Gemini) - Super Fast (~1s)
       const response = await fetch('/api/vouchers/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: imageDataUrl,
-          rawText,
         }),
       });
 
       if (response.ok) {
         const json = await response.json();
+        const res = json.result;
+
+        const ocrDataObj = {
+          text: res.rawText || '',
+          amount: res.amount,
+          reference: res.reference,
+          operationNumber: res.operationNumber,
+          entity: res.entity,
+          type: res.type,
+          engine: res.engine,
+        };
+        setOcrResult(ocrDataObj);
+
+        const finalType = res.type === 'EGRESO' ? 'EGRESO' : 'INGRESO';
+        if (res.type) setOpType(finalType);
+        if (res.amount) setAmount(String(res.amount));
+        if (res.operationNumber) setOperationNumber(res.operationNumber);
+        if (res.reference) setReference(res.reference);
+        if (res.entity) setEntity(res.entity);
+
+        // Trigger Modo Ráfaga (Auto-save in 3s)
+        if (res.amount && res.amount > 0 && autoSaveEnabled) {
+          startAutoSaveCountdown({
+            amount: res.amount,
+            type: finalType,
+            operationNumber: res.operationNumber,
+            reference: res.reference,
+            entity: res.entity,
+            image: imageDataUrl,
+            qr: existingQR,
+            ocr: ocrDataObj,
+          });
+        }
+        return;
+      }
+    } catch (networkErr) {
+      console.warn('Online AI failed, falling back to local engine:', networkErr);
+    }
+
+    // 2. Offline / Fallback Local Engine (Only if cloud AI unreachable)
+    try {
+      setAnalysisStatus('Procesando comprobante con motor local...');
+      const Tesseract = (await import('tesseract.js')).default;
+      const { data } = await Tesseract.recognize(imageDataUrl, 'spa+eng', {
+        logger: () => {},
+      });
+      const rawText = data.text;
+
+      const fallbackRes = await fetch('/api/vouchers/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawText }),
+      });
+
+      if (fallbackRes.ok) {
+        const json = await fallbackRes.json();
         const res = json.result;
 
         const ocrDataObj = {
@@ -356,7 +400,6 @@ export default function ScannerPage() {
         if (res.reference) setReference(res.reference);
         if (res.entity) setEntity(res.entity);
 
-        // If amount was detected, trigger Modo Ráfaga (Auto-save in 3s)
         if (res.amount && res.amount > 0 && autoSaveEnabled) {
           startAutoSaveCountdown({
             amount: res.amount,
@@ -370,8 +413,8 @@ export default function ScannerPage() {
           });
         }
       }
-    } catch (err) {
-      console.error('Analysis failed:', err);
+    } catch (localErr) {
+      console.error('Local engine error:', localErr);
     } finally {
       setStep('review');
     }
@@ -481,12 +524,29 @@ export default function ScannerPage() {
   const handleCapture = () => {
     if (!videoRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    canvas.width = videoRef.current.videoWidth || 1280;
-    canvas.height = videoRef.current.videoHeight || 720;
+    const vWidth = videoRef.current.videoWidth || 1280;
+    const vHeight = videoRef.current.videoHeight || 720;
+    
+    // Scale down ultra-heavy 4K/FullHD mobile frames to max 1280px for instant upload
+    const maxDim = 1280;
+    let targetW = vWidth;
+    let targetH = vHeight;
+    if (vWidth > maxDim || vHeight > maxDim) {
+      if (vWidth > vHeight) {
+        targetH = Math.round((vHeight * maxDim) / vWidth);
+        targetW = maxDim;
+      } else {
+        targetW = Math.round((vWidth * maxDim) / vHeight);
+        targetH = maxDim;
+      }
+    }
+
+    canvas.width = targetW;
+    canvas.height = targetH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    ctx.drawImage(videoRef.current, 0, 0, targetW, targetH);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
     setCapturedImage(dataUrl);
     stopCamera();
     runAnalysis(dataUrl);
