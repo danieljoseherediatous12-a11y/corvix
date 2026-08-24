@@ -143,6 +143,21 @@ export async function POST(req: NextRequest) {
     try {
       const qr = voucherData.qrData;
       const ocr = voucherData.ocrData;
+      const scannedImage: string | undefined = voucherData.scannedImage;
+
+      // If image is a base64 data URL, save it directly
+      let imageUrl: string | undefined = undefined;
+      let imageMimeType: string | undefined = undefined;
+      let imageSize: number | undefined = undefined;
+
+      if (scannedImage && scannedImage.startsWith("data:image")) {
+        imageUrl = scannedImage; // store as data URL (base64) in DB
+        const mimeMatch = scannedImage.match(/^data:(image\/[a-z]+);base64,/);
+        imageMimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+        // Estimate size in bytes (base64 is ~4/3 of original)
+        const base64Data = scannedImage.split(",")[1] || "";
+        imageSize = Math.round((base64Data.length * 3) / 4);
+      }
 
       await prisma.voucher.create({
         data: {
@@ -172,12 +187,19 @@ export async function POST(req: NextRequest) {
           ocrEntity: ocr?.entity || undefined,
           ocrCompleted: !!ocr?.text,
           ocrCompletedAt: ocr?.text ? new Date() : undefined,
+          // Save the captured image
+          imageUrl: imageUrl || undefined,
+          imageMimeType: imageMimeType || undefined,
+          imageSize: imageSize || undefined,
+          imageSavedAt: imageUrl ? new Date() : undefined,
+          scannedAt: new Date(),
         },
       });
     } catch (e) {
       console.warn("Could not create attached voucher:", e);
     }
   }
+
 
   await createAuditLog({
     userId: session.user.id,
