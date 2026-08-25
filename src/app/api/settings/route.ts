@@ -36,7 +36,8 @@ async function updateSettingsHandler(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const userRole = (session.user as { role?: string }).role || "";
-  if (!["DUENO", "ADMIN"].includes(userRole)) {
+  const isAuthorized = ["DUENO", "DUEÑO", "ADMIN"].includes(userRole.toUpperCase());
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 

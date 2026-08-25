@@ -199,8 +199,9 @@ export default function SettingsPage() {
               <input
                 type="text"
                 disabled={!isAuthorized}
-                value={settings.business_name || 'Mi Corresponsal'}
+                value={settings.business_name ?? ''}
                 onChange={(e) => setSettings({ ...settings, business_name: e.target.value })}
+                placeholder="Mi Corresponsal"
                 className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
               />
             </div>
@@ -210,7 +211,7 @@ export default function SettingsPage() {
               <input
                 type="text"
                 disabled={!isAuthorized}
-                value={settings.business_nit || ''}
+                value={settings.business_nit ?? ''}
                 onChange={(e) => setSettings({ ...settings, business_nit: e.target.value })}
                 placeholder="Ej: 900.123.456-7"
                 className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
@@ -222,7 +223,7 @@ export default function SettingsPage() {
               <input
                 type="text"
                 disabled={!isAuthorized}
-                value={settings.business_address || ''}
+                value={settings.business_address ?? ''}
                 onChange={(e) => setSettings({ ...settings, business_address: e.target.value })}
                 placeholder="Ej: Calle 45 # 12-34"
                 className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
@@ -234,8 +235,9 @@ export default function SettingsPage() {
               <input
                 type="text"
                 disabled={!isAuthorized}
-                value={settings.business_city || 'Bogotá, Colombia'}
+                value={settings.business_city ?? ''}
                 onChange={(e) => setSettings({ ...settings, business_city: e.target.value })}
+                placeholder="Ej: Bogotá, Colombia"
                 className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none focus:border-slate-900 focus:bg-white disabled:opacity-60"
               />
             </div>
