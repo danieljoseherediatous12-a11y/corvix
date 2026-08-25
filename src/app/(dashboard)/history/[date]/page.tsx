@@ -129,6 +129,12 @@ export default function HistoryDetailPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState<{ op: OperationItem; voucher: VoucherData } | null>(null);
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [businessInfo, setBusinessInfo] = useState<{ name: string; nit: string; address: string; city: string }>({
+    name: '',
+    nit: '',
+    address: '',
+    city: '',
+  });
 
   const openImageFullSize = (imageUrl: string) => {
     try {
@@ -157,6 +163,22 @@ export default function HistoryDetailPage() {
   };
 
   useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        const setMap: Record<string, string> = {};
+        (data.settings || []).forEach((s: { key: string; value: string }) => {
+          setMap[s.key] = s.value;
+        });
+        setBusinessInfo({
+          name: setMap.business_name || '',
+          nit: setMap.business_nit || '',
+          address: setMap.business_address || '',
+          city: setMap.business_city || '',
+        });
+      })
+      .catch(() => {});
+
     fetch(`/api/closings?date=${date}`)
       .then((r) => r.json())
       .then((data) => {
@@ -905,10 +927,13 @@ export default function HistoryDetailPage() {
             </div>
             <div>
               <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">
-                CORVIX • CORRESPONSAL BANCARIO
+                CORVIX • {businessInfo.name ? businessInfo.name.toUpperCase() : 'CORRESPONSAL BANCARIO'}
               </h1>
               <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Informe Diario de Cuadre de Caja y Resumen Operativo
+                {businessInfo.nit ? `NIT: ${businessInfo.nit} • ` : ''}
+                {businessInfo.address ? `${businessInfo.address} • ` : ''}
+                {businessInfo.city ? `${businessInfo.city} • ` : ''}
+                Informe Diario de Cuadre de Caja
               </p>
             </div>
           </div>
@@ -1099,7 +1124,7 @@ export default function HistoryDetailPage() {
             <div className="text-center">
               <div className="border-b border-slate-400 pb-12" />
               <p className="font-black text-xs text-slate-900 mt-2">Supervisor / Propietario</p>
-              <p className="text-[10px] text-slate-500 font-mono">Firma y Sello de Aprobación</p>
+              <p className="text-[10px] text-slate-500 font-mono">{businessInfo.name ? `${businessInfo.name} - Aprobado` : 'Firma y Sello de Aprobación'}</p>
             </div>
           </div>
 

@@ -78,8 +78,8 @@ export function Sidebar({
             <p className="font-black text-slate-900 text-xl tracking-widest leading-none group-hover:text-emerald-600 transition-colors">
               CORVIX
             </p>
-            <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mt-1">
-              Control de Caja
+            <p className="text-emerald-600 text-[11px] font-black uppercase tracking-wider mt-1 truncate max-w-[160px]">
+              {businessName || 'Control de Caja'}
             </p>
           </div>
         </Link>

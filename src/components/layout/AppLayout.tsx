@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileNav } from "@/components/layout/MobileNav"
@@ -33,6 +33,7 @@ function getUserRole(session: ReturnType<typeof useSession>["data"]) {
 export function AppLayout({ children }: AppLayoutProps) {
   const { data: session } = useSession()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [businessName, setBusinessName] = useState<string>('Control de Caja')
 
   const rawRole = getUserRole(session)
   const roleDisplay = formatRoleName(rawRole)
@@ -40,11 +41,23 @@ export function AppLayout({ children }: AppLayoutProps) {
   const name = session?.user?.name || "Usuario"
   const email = session?.user?.email ?? ""
 
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((data) => {
+        const bName = (data.settings || []).find((s: { key: string; value: string }) => s.key === 'business_name')?.value
+        if (bName && bName.trim()) {
+          setBusinessName(bName.trim())
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 antialiased font-sans">
       {/* Desktop sidebar */}
       <Sidebar
-        businessName="Mi Corresponsal"
+        businessName={businessName}
         userName={name}
         userEmail={email}
         userRole={roleDisplay}
@@ -65,7 +78,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               <h1 className="font-black text-base leading-tight text-slate-900 tracking-wider flex items-center gap-1.5">
                 CORVIX
               </h1>
-              <p className="text-slate-400 text-[10px] font-semibold">Control Inteligente de Caja</p>
+              <p className="text-emerald-600 text-[10px] font-black uppercase tracking-wider truncate max-w-[150px]">
+                {businessName}
+              </p>
             </div>
           </div>
           
