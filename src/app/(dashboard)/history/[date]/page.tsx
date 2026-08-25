@@ -699,6 +699,8 @@ export default function HistoryDetailPage() {
                     <img
                       src={selectedVoucher.voucher.imageUrl}
                       alt="Foto original del voucher"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full max-h-72 object-contain"
                     />
                   </div>

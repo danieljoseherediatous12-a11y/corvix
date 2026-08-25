@@ -9,6 +9,7 @@ import {
   calculateTotalFees,
 } from "@/lib/calculations";
 import { createAuditLog } from "@/lib/audit";
+import { purgeOldHistoryData } from "@/lib/maintenance";
 
 function getColombiaDateStr(date: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(date);
@@ -18,6 +19,9 @@ function getColombiaDateStr(date: Date = new Date()): string {
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  // 1. Auto-purge sessions closed more than 30 days ago
+  purgeOldHistoryData().catch(() => {});
 
   // Auto-clean past open sessions (only today can be EN_CURSO)
   try {

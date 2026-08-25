@@ -216,6 +216,8 @@ export default function VouchersPage() {
                   <img
                     src={selectedVoucher.imageUrl}
                     alt="Foto del comprobante"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full max-h-64 object-contain"
                   />
                 </div>
