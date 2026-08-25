@@ -27,6 +27,9 @@ import {
   ShieldCheck,
   Search,
   Filter,
+  ImageIcon,
+  ExternalLink,
+  AlertCircle,
 } from 'lucide-react';
 
 interface VoucherData {
@@ -674,6 +677,39 @@ export default function HistoryDetailPage() {
 
             {/* MODAL BODY */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs">
+              {/* VOUCHER PHOTO PREVIEW */}
+              {selectedVoucher.voucher.imageUrl ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <ImageIcon size={14} className="text-emerald-600" />
+                      Foto Original del Voucher
+                    </h4>
+                    <a
+                      href={selectedVoucher.voucher.imageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} />
+                      Ver Tamaño Completo
+                    </a>
+                  </div>
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-72 flex items-center justify-center shadow-inner">
+                    <img
+                      src={selectedVoucher.voucher.imageUrl}
+                      alt="Foto original del voucher"
+                      className="w-full h-full max-h-72 object-contain"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2 text-amber-800 text-[11px] font-medium">
+                  <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                  <span>Esta operación se registró de forma directa o manual (sin foto de cámara adjunta).</span>
+                </div>
+              )}
+
               {/* OPERATION SUMMARY CARD */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
                 <div className="flex justify-between items-center">
