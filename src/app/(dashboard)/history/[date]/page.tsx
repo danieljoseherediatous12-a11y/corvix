@@ -777,8 +777,11 @@ export default function HistoryDetailPage() {
         {/* Document Header */}
         <div className="border-b-2 border-slate-900 pb-4 mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl p-1.5 flex items-center justify-center">
-              <CorvixLogo size={42} />
+            <div
+              className="w-14 h-14 rounded-2xl p-1 flex items-center justify-center shrink-0"
+              style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+            >
+              <CorvixLogo size={50} />
             </div>
             <div>
               <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">
