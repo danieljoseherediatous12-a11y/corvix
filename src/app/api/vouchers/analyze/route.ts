@@ -58,9 +58,15 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     rawText,
   };
 
-  // 1. Detect Bank / Entity (Redeban/Credibanco is the NETWORK, not the bank)
-  if (fullText.includes("BANCOLOMBIA") || fullText.includes("SANCOLOMBIA") || fullText.includes("CORRESPONSAL BANCOLOMBIA") || fullText.includes("PAGAFACIL")) {
-    result.entity = "BANCOLOMBIA";
+  // 1. Detect Bank / Entity (Check issuing network / logo first)
+  if (fullText.includes("REDEBAN") || fullText.includes("RBM")) {
+    if (fullText.includes("NEQUI")) result.entity = "NEQUI";
+    else if (fullText.includes("DAVIPLATA")) result.entity = "DAVIPLATA";
+    else if (fullText.includes("DALE")) result.entity = "DALE";
+    else if (fullText.includes("MOVII")) result.entity = "MOVII";
+    else result.entity = "REDEBAN";
+  } else if (fullText.includes("CREDIBANCO")) {
+    result.entity = "CREDIBANCO";
   } else if (fullText.includes("NEQUI")) {
     result.entity = "NEQUI";
   } else if (fullText.includes("DAVIPLATA")) {
@@ -69,6 +75,8 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.entity = "DAVIVIENDA";
   } else if (fullText.includes("EFECTY")) {
     result.entity = "EFECTY";
+  } else if (fullText.includes("BANCOLOMBIA") || fullText.includes("SANCOLOMBIA")) {
+    result.entity = "BANCOLOMBIA";
   } else if (fullText.includes("BBVA")) {
     result.entity = "BBVA";
   } else if (fullText.includes("BANCO AGRARIO") || fullText.includes("AGRARIO")) {
@@ -77,9 +85,6 @@ export function parseColombianVoucherText(rawText: string): VoucherAnalysisResul
     result.entity = "BANCO DE BOGOTÁ";
   } else if (fullText.includes("SUPERGIROS") || fullText.includes("SURED")) {
     result.entity = "SUPERGIROS";
-  } else if (fullText.includes("REDEBAN") || fullText.includes("RBM") || fullText.includes("CREDIBANCO")) {
-    if (fullText.includes("BANCOLOMBIA")) result.entity = "BANCOLOMBIA";
-    else result.entity = "REDEBAN / CREDIBANCO";
   } else if (fullText.includes("MOVII") || fullText.includes("DALE")) {
     result.entity = "BILLETERA DIGITAL";
   }
@@ -299,22 +304,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Se requiere imagen o texto OCR" }, { status: 400 });
     }
 
-    const prompt = `Eres un experto en vouchers de corresponsal bancario colombiano. Analiza la imagen del comprobante y extrae los datos exactos.
+    const prompt = `Eres un experto en vouchers de corresponsales bancarios y datáfonos en Colombia. Analiza la imagen del comprobante y extrae los datos exactos.
 
-REGLAS IMPORTANTES PARA COLOMBIA:
-- Los números usan PUNTO como separador de miles: 3.000.000 = tres millones, 50.000 = cincuenta mil
-- El campo "amount" debe ser un ENTERO SIN PUNTOS NI COMAS: 3000000 para tres millones, 50000 para cincuenta mil
-- El monto está usualmente en la línea que dice "VALOR" o "TOTAL"
-- El número de comprobante/aprobación son solo dígitos cortos (4-10 digitos), NO incluyas el nombre del banco
+REGLAS DE IDENTIFICACIÓN:
+1. ENTIDAD O RED ("entity"):
+   - Si el logo o encabezado superior dice "Redeban" (o Redeban Multicolor) y es un Recaudo/Convenio o no especifica una cuenta bancaria particular del cliente (como Nequi o Daviplata), la entidad es "Redeban".
+   - Si es una recarga o pago a una billetera o banco específico (Nequi, Daviplata, Dale, Movii, Bancolombia, Davivienda, Banco Agrario, Efecty, etc.), la entidad es ese banco/billetera ("Nequi", "Daviplata", etc.).
+   - NO uses el nombre del corresponsal o punto físico (ej. "Pagafácil", "Droguería", "Calle...") como la entidad.
+2. MONTO ("amount"):
+   - Los números usan PUNTO como separador de miles: 3.000.000 = tres millones, 50.000 = cincuenta mil.
+   - El campo "amount" debe ser un ENTERO SIN PUNTOS NI COMAS: 3000000 para tres millones, 50000 para cincuenta mil.
+   - El monto está usualmente en la línea que dice "VALOR" o "TOTAL".
+3. NÚMERO DE OPERACIÓN ("operationNumber"):
+   - Extrae el número de comprobante, recibo o aprobación (ej. 003296 o 056567). Si hay "APRO" o "APROBACIÓN", prioriza ese número.
+4. REFERENCIA ("reference"):
+   - Número de referencia, convenio, cuenta o celular (solo dígitos).
 
 Responde SOLO con JSON válido, sin explicaciones:
 {
-  "entity": "nombre del banco o red: Bancolombia, Nequi, Daviplata, Davivienda, Efecty, Redeban, etc.",
+  "entity": "Redeban | Nequi | Daviplata | Bancolombia | Davivienda | Efecty | etc.",
   "type": "INGRESO para depósito/consignación/recaudo/pago, EGRESO para retiro/entrega",
   "categoryName": "Recaudo | Consignación | Retiro | Pago factura | Recarga",
-  "amount": NUMERO_ENTERO_SIN_PUNTOS (ejemplo: si ves $3.000.000 escribe 3000000, si ves $50.000 escribe 50000),
-  "operationNumber": "solo los digitos del número de comprobante o aprobación (sin palabras)",
-  "reference": "numero de referencia, convenio, cuenta o celular (solo digitos)",
+  "amount": NUMERO_ENTERO_SIN_PUNTOS,
+  "operationNumber": "solo los digitos del número de comprobante o aprobación",
+  "reference": "numero de referencia, convenio, cuenta o celular",
   "date": "YYYY-MM-DD o null",
   "time": "HH:MM o null",
   "status": "EXITOSA o RECHAZADA"
@@ -351,9 +364,13 @@ Responde SOLO con JSON válido, sin explicaciones:
 
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
-          const candidateText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (candidateText) {
-            const parsedJson = sanitizeAIResult(JSON.parse(candidateText));
+          const candidateParts = aiData?.candidates?.[0]?.content?.parts || [];
+          const textPart = candidateParts.find((p: { text?: string; thought?: boolean }) => p.text && !p.thought) || candidateParts[0];
+          const rawCandidateText = textPart?.text || "";
+          const jsonMatch = rawCandidateText.match(/\{[\s\S]*\}/);
+
+          if (jsonMatch) {
+            const parsedJson = sanitizeAIResult(JSON.parse(jsonMatch[0]));
             // Calculate dynamic confidence score based on valid fields
             let fieldScore = 0.5;
             if (Number(parsedJson.amount) > 0) fieldScore += 0.25;
