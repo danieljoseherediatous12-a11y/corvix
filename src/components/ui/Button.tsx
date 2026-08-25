@@ -1,4 +1,4 @@
-﻿import React from "react"
+import React from "react"
 import { Loader2 } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,8 +64,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={isDisabled}
         className={[
-          "inline-flex items-center justify-center font-semibold",
-          "transition-all duration-150 ease-in-out",
+          "inline-flex items-center justify-center font-semibold cursor-pointer touch-manipulation active:scale-[0.98]",
+          "transition-all duration-75 ease-out",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-1",
           variantClasses[variant],
           sizeClasses[size],

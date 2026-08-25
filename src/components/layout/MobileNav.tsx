@@ -35,7 +35,8 @@ export function MobileNav() {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center justify-center h-full relative group transition-all duration-200 active:scale-90"
+              prefetch={true}
+              className="flex flex-col items-center justify-center h-full relative group transition-transform duration-100 active:scale-95 touch-manipulation select-none"
             >
               {/* Icon Container with Emerald Glow if Active */}
               <div

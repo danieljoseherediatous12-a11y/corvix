@@ -8,17 +8,26 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const settings = await prisma.setting.findMany({ orderBy: { key: "asc" } });
-  const denominations = await prisma.cashDenomination.findMany({
-    where: { active: true },
-    orderBy: { order: "asc" },
-  });
-  const categories = await prisma.operationCategory.findMany({
-    where: { active: true },
-    orderBy: [{ type: "asc" }, { order: "asc" }],
-  });
+  const [settings, denominations, categories] = await Promise.all([
+    prisma.setting.findMany({ orderBy: { key: "asc" } }),
+    prisma.cashDenomination.findMany({
+      where: { active: true },
+      orderBy: { order: "asc" },
+    }),
+    prisma.operationCategory.findMany({
+      where: { active: true },
+      orderBy: [{ type: "asc" }, { order: "asc" }],
+    }),
+  ]);
 
-  return NextResponse.json({ settings, denominations, categories });
+  return NextResponse.json(
+    { settings, denominations, categories },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+      },
+    }
+  );
 }
 
 // POST & PATCH /api/settings - Update settings (Admin/Dueno only)

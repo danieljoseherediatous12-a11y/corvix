@@ -26,18 +26,7 @@ function getUserRole(session: ReturnType<typeof useSession>["data"]) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { data: session, status } = useSession()
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3 text-slate-700">
-          <Loader2 size={32} className="animate-spin text-emerald-600" />
-          <p className="text-xs font-semibold text-slate-500">Cargando sistema...</p>
-        </div>
-      </div>
-    )
-  }
+  const { data: session } = useSession()
 
   const rawRole = getUserRole(session)
   const roleDisplay = formatRoleName(rawRole)
