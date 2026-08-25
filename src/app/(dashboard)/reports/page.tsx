@@ -519,17 +519,27 @@ export default function ReportsPage() {
                 <div className="divide-y divide-slate-100">
                   {report.byCategory
                     .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-                    .map((cat) => (
-                      <div key={cat.name} className="px-6 py-4 flex items-center justify-between text-sm hover:bg-slate-50/70 transition">
-                        <div>
-                          <div className="font-bold text-slate-900">{cat.name}</div>
-                          <div className="text-xs text-slate-400">{cat.count} transacciones</div>
+                    .map((cat) => {
+                      const totalVol = report.byCategory.reduce((acc, c) => acc + c.total, 0) || 1;
+                      const pct = ((cat.total / totalVol) * 100).toFixed(1);
+                      return (
+                        <div key={cat.name} className="px-6 py-4 flex items-center justify-between text-sm hover:bg-slate-50/70 transition">
+                          <div>
+                            <div className="font-bold text-slate-900">{cat.name}</div>
+                            <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <span>{cat.count} transacciones</span>
+                              <span>•</span>
+                              <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                                {pct}% del total
+                              </span>
+                            </div>
+                          </div>
+                          <div className={`font-black ${cat.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {cat.type === 'INGRESO' ? '+' : '-'}{formatCOP(Math.abs(cat.total))}
+                          </div>
                         </div>
-                        <div className={`font-black ${cat.type === 'INGRESO' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {cat.type === 'INGRESO' ? '+' : '-'}{formatCOP(Math.abs(cat.total))}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               )}
             </div>
