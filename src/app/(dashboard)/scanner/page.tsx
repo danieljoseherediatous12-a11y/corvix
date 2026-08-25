@@ -356,6 +356,9 @@ export default function ScannerPage() {
         if (res.reference) setReference(res.reference);
         if (res.entity) setEntity(res.entity);
 
+        // Instantly transition to review view so the voucher photo is shown and spinner dismissed
+        setStep('review');
+
         // Trigger Modo Ráfaga (Auto-save in 3s)
         if (res.amount && res.amount > 0 && autoSaveEnabled) {
           startAutoSaveCountdown({
