@@ -338,7 +338,7 @@ Responde SOLO con JSON válido, sin explicaciones:
         }
 
         const aiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -354,19 +354,25 @@ Responde SOLO con JSON válido, sin explicaciones:
           const candidateText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candidateText) {
             const parsedJson = sanitizeAIResult(JSON.parse(candidateText));
+            // Calculate dynamic confidence score based on valid fields
+            let fieldScore = 0.5;
+            if (Number(parsedJson.amount) > 0) fieldScore += 0.25;
+            if (parsedJson.operationNumber && parsedJson.operationNumber !== "NO DISPONIBLE") fieldScore += 0.15;
+            if (parsedJson.entity && parsedJson.entity !== "NO DISPONIBLE") fieldScore += 0.09;
+
             return NextResponse.json({
-              result: { ...parsedJson, engine: "AI_VISION_GEMINI", confidence: 0.99 },
+              result: { ...parsedJson, engine: "AI_VISION_GEMINI", confidence: Math.min(0.99, fieldScore) },
             });
           }
         } else {
-          console.warn("Gemini 3.6 error:", await aiResponse.text());
+          console.warn("Gemini Vision error:", await aiResponse.text());
         }
       } catch (aiErr) {
         console.warn("Gemini Vision fallback to Groq / Heuristic OCR:", aiErr);
       }
     }
 
-    // === LAYER 2: GROQ AI (Qwen 3.6 27B / Meta) ===
+    // === LAYER 2: GROQ AI (Llama 3.3 70B / Meta) ===
     const groqKeySetting = await prisma.setting.findUnique({ where: { key: "GROQ_API_KEY" } });
     const groqApiKey = process.env.GROQ_API_KEY || groqKeySetting?.value;
 
@@ -379,7 +385,7 @@ Responde SOLO con JSON válido, sin explicaciones:
             Authorization: `Bearer ${groqApiKey}`,
           },
           body: JSON.stringify({
-            model: "qwen/qwen3.6-27b",
+            model: "llama-3.3-70b-versatile",
             messages: [
               {
                 role: "user",
@@ -399,8 +405,13 @@ Responde SOLO con JSON válido, sin explicaciones:
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsedJson = sanitizeAIResult(JSON.parse(jsonMatch[0]));
+              let fieldScore = 0.5;
+              if (Number(parsedJson.amount) > 0) fieldScore += 0.25;
+              if (parsedJson.operationNumber && parsedJson.operationNumber !== "NO DISPONIBLE") fieldScore += 0.15;
+              if (parsedJson.entity && parsedJson.entity !== "NO DISPONIBLE") fieldScore += 0.05;
+
               return NextResponse.json({
-                result: { ...parsedJson, engine: "AI_VISION_GROQ", confidence: 0.95 },
+                result: { ...parsedJson, engine: "AI_VISION_GROQ", confidence: Math.min(0.95, fieldScore) },
               });
             }
           }

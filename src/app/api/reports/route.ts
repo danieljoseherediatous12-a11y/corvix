@@ -11,105 +11,118 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const type = searchParams.get("type") || "daily"; // daily | weekly | monthly
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-
-  let dateFilter: { gte?: string; lte?: string } = {};
-
-  const todayStr = getColombiaDateStr();
-
-  if (startDate && endDate) {
-    dateFilter = { gte: startDate, lte: endDate };
-  } else {
-    if (type === "daily") {
-      dateFilter = { gte: todayStr, lte: todayStr };
-    } else if (type === "weekly") {
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0 = Sunday
-      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + diffToMonday);
-      dateFilter = {
-        gte: getColombiaDateStr(monday),
-        lte: todayStr,
-      };
-    } else if (type === "monthly") {
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      dateFilter = {
-        gte: getColombiaDateStr(monthStart),
-        lte: todayStr,
-      };
-    }
+  const rawRole = (session.user as { role?: string }).role || "";
+  const isOwner = ["DUENO", "DUEÑO", "ADMIN"].includes(rawRole.toUpperCase());
+  if (!isOwner) {
+    return NextResponse.json(
+      { error: "Acceso denegado. Solo el Dueño o Administrador puede acceder a los reportes financieros." },
+      { status: 403 }
+    );
   }
 
-  // 1. Get all operations in date range (live & closed)
-  const operations = await prisma.operation.findMany({
-    where: {
-      status: { not: "CANCELADA" },
-      session: {
-        date: dateFilter,
-      },
-    },
-    include: {
-      category: true,
-      session: true,
-      user: { select: { id: true, name: true } },
-    },
-    orderBy: { operatedAt: "desc" },
-  });
+  try {
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type") || "daily"; // daily | weekly | monthly
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
 
-  // 2. Get closings in date range
-  const closings = await prisma.dailyClosing.findMany({
-    where: { date: dateFilter },
-    include: {
-      user: { select: { id: true, name: true } },
-    },
-    orderBy: { date: "asc" },
-  });
+    let dateFilter: { gte?: string; lte?: string } = {};
 
-  // 3. Get open sessions in date range (not yet closed)
-  const openSessions = await prisma.cashSession.findMany({
-    where: {
-      date: dateFilter,
-      status: "ABIERTA",
-    },
-    include: {
-      operations: {
-        where: { status: { not: "CANCELADA" } },
-        include: { category: true },
-      },
-      openedBy: { select: { id: true, name: true } },
-    },
-    orderBy: { date: "asc" },
-  });
+    const todayStr = getColombiaDateStr();
 
-  // Calculate live aggregates from all operations in period
-  let totalIncome = 0;
-  let totalExpense = 0;
-  const totalOperations = operations.length;
-  const byCategory: Record<string, { name: string; type: string; total: number; count: number }> = {};
-  const datesSet = new Set<string>();
-
-  for (const op of operations) {
-    if (op.session?.date) {
-      datesSet.add(op.session.date);
-    }
-    if (op.type === "INGRESO") {
-      totalIncome += op.amount;
+    if (startDate && endDate) {
+      dateFilter = { gte: startDate, lte: endDate };
     } else {
-      totalExpense += op.amount;
+      if (type === "daily") {
+        dateFilter = { gte: todayStr, lte: todayStr };
+      } else if (type === "weekly") {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + diffToMonday);
+        dateFilter = {
+          gte: getColombiaDateStr(monday),
+          lte: todayStr,
+        };
+      } else if (type === "monthly") {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateFilter = {
+          gte: getColombiaDateStr(monthStart),
+          lte: todayStr,
+        };
+      }
     }
 
-    const catName = op.category?.name || (op.type === "INGRESO" ? "Ingresos / Depósitos" : "Retiros / Pagos");
-    if (!byCategory[catName]) {
-      byCategory[catName] = { name: catName, type: op.type, total: 0, count: 0 };
+    // 1. Get all operations in date range (live & closed)
+    const operations = await prisma.operation.findMany({
+      where: {
+        status: { not: "CANCELADA" },
+        session: {
+          date: dateFilter,
+        },
+      },
+      include: {
+        category: true,
+        session: true,
+        user: { select: { id: true, name: true } },
+      },
+      orderBy: { operatedAt: "desc" },
+    });
+
+    // 2. Get closings in date range
+    const closings = await prisma.dailyClosing.findMany({
+      where: { date: dateFilter },
+      include: {
+        user: { select: { id: true, name: true } },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // 3. Get open sessions in date range (not yet closed)
+    const openSessions = await prisma.cashSession.findMany({
+      where: {
+        date: dateFilter,
+        status: "ABIERTA",
+      },
+      include: {
+        operations: {
+          where: { status: { not: "CANCELADA" } },
+          include: { category: true },
+        },
+        openedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // Calculate live aggregates from all operations in period
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let totalFees = 0;
+    const totalOperations = operations.length;
+    const byCategory: Record<string, { name: string; type: string; total: number; count: number }> = {};
+    const datesSet = new Set<string>();
+
+    for (const op of operations) {
+      if (op.session?.date) {
+        datesSet.add(op.session.date);
+      }
+      const opFee = op.fee || 0;
+      totalFees += opFee;
+      if (op.type === "INGRESO") {
+        totalIncome += (op.amount + opFee);
+      } else {
+        totalExpense += op.amount;
+      }
+
+      const catName = op.category?.name || (op.type === "INGRESO" ? "Ingresos / Depósitos" : "Retiros / Pagos");
+      if (!byCategory[catName]) {
+        byCategory[catName] = { name: catName, type: op.type, total: 0, count: 0 };
+      }
+      byCategory[catName].total += op.amount;
+      byCategory[catName].count++;
     }
-    byCategory[catName].total += op.amount;
-    byCategory[catName].count++;
-  }
 
   // Also account for sessions dates
   closings.forEach((c) => datesSet.add(c.date));
@@ -169,33 +182,37 @@ export async function GET(req: NextRequest) {
     else if (c.status === "FALTANTE") deficitDays++;
   }
 
-  return NextResponse.json({
-    type,
-    period: dateFilter,
-    closings: dailyEntries,
-    operations: operations.map((op) => ({
-      id: op.id,
-      date: op.session?.date || op.operatedAt.toISOString().split('T')[0],
-      operatedAt: op.operatedAt,
-      type: op.type,
-      category: op.category?.name || (op.type === "INGRESO" ? "Ingresos / Depósitos" : "Retiros / Pagos"),
-      amount: op.amount,
-      fee: op.fee || 0,
-      netCashFlow: op.netCashFlow,
-      reference: op.reference || op.operationNumber || op.voucherNumber || "S/N",
-      userName: op.user?.name || "Operador",
-    })),
-    summary: {
-      totalIncome,
-      totalExpense,
-      totalOperations,
-      daysWithData: datesSet.size,
-      squaredDays,
-      surplusDays,
-      deficitDays,
-      totalDifference,
-      averageDifference: closings.length > 0 ? totalDifference / closings.length : 0,
-    },
-    byCategory: Object.values(byCategory),
-  });
+    return NextResponse.json({
+      type,
+      period: dateFilter,
+      closings: dailyEntries,
+      operations: operations.map((op) => ({
+        id: op.id,
+        date: op.session?.date || op.operatedAt.toISOString().split('T')[0],
+        operatedAt: op.operatedAt,
+        type: op.type,
+        category: op.category?.name || (op.type === "INGRESO" ? "Ingresos / Depósitos" : "Retiros / Pagos"),
+        amount: op.amount,
+        fee: op.fee || 0,
+        netCashFlow: op.netCashFlow,
+        reference: op.reference || op.operationNumber || op.voucherNumber || "S/N",
+        userName: op.user?.name || "Operador",
+      })),
+      summary: {
+        totalIncome,
+        totalExpense,
+        totalOperations,
+        daysWithData: datesSet.size,
+        squaredDays,
+        surplusDays,
+        deficitDays,
+        totalDifference,
+        averageDifference: closings.length > 0 ? totalDifference / closings.length : 0,
+      },
+      byCategory: Object.values(byCategory),
+    });
+  } catch (error) {
+    console.error("Error in GET /api/reports:", error);
+    return NextResponse.json({ error: "Error al generar reportes financieros" }, { status: 500 });
+  }
 }

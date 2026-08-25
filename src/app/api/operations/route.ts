@@ -51,7 +51,9 @@ export async function GET(req: NextRequest) {
 // POST /api/operations - Create new operation
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+  const userId = session.user.id;
 
   const body = await req.json();
   const {
@@ -74,82 +76,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El tipo y el monto de la operación son requeridos" }, { status: 400 });
   }
 
-  // Resolve session (active open session or today's session)
-  let activeSessionId = sessionId;
-  if (!activeSessionId) {
-    const active = await prisma.cashSession.findFirst({
-      where: { status: "ABIERTA" },
-      orderBy: { createdAt: "desc" },
-    });
-    if (active) {
-      activeSessionId = active.id;
-    } else {
-      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
-      const existingToday = await prisma.cashSession.findFirst({
-        where: { date: today, status: "ABIERTA" },
-        orderBy: { openedAt: "desc" },
-      });
-      if (existingToday) {
-        activeSessionId = existingToday.id;
-      } else {
-        const newSession = await prisma.cashSession.create({
-          data: {
-            date: today,
-            initialCash: 5000000,
-            openedById: session.user.id!,
-            status: "ABIERTA",
-          },
-        });
-        activeSessionId = newSession.id;
-      }
-    }
-  }
-
-  const numAmount = parseInt(String(amount));
-  const numFee = fee !== undefined ? parseInt(String(fee)) : 0;
-  const numReceived = receivedAmount ? parseInt(String(receivedAmount)) : undefined;
-  const numChange = changeAmount ? parseInt(String(changeAmount)) : undefined;
-
-  // Calculate net cash flow
-  const netCashFlow = calculateNetCashFlow(
-    type as "INGRESO" | "EGRESO",
-    numAmount,
-    numFee,
-    numReceived,
-    numChange
-  );
-
-  const operation = await prisma.operation.create({
-    data: {
-      sessionId: activeSessionId,
-      categoryId: categoryId || undefined,
-      userId: session.user.id!,
-      type,
-      amount: numAmount,
-      fee: numFee,
-      receivedAmount: numReceived,
-      changeAmount: numChange,
-      netCashFlow,
-      description,
-      reference,
-      voucherNumber,
-      operationNumber,
-      status: opStatus || "COMPLETADA",
-    },
-    include: {
-      category: true,
-      user: { select: { id: true, name: true } },
-      voucher: true,
-    },
-  });
-
-  // Always ensure a linked Voucher record is created for every operation
   try {
+    const numAmount = parseInt(String(amount));
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return NextResponse.json({ error: "El monto debe ser un número positivo válido" }, { status: 400 });
+    }
+
+    // Resolve active open session
+    let targetSession: { id: string; status: string } | null = null;
+    if (sessionId) {
+      targetSession = await prisma.cashSession.findUnique({
+        where: { id: sessionId },
+        select: { id: true, status: true },
+      });
+    } else {
+      targetSession = await prisma.cashSession.findFirst({
+        where: { status: "ABIERTA" },
+        orderBy: { openedAt: "desc" },
+        select: { id: true, status: true },
+      });
+    }
+
+    if (!targetSession) {
+      return NextResponse.json(
+        { error: "No hay una caja abierta actualmente. Abre la jornada en el menú de caja antes de registrar operaciones." },
+        { status: 400 }
+      );
+    }
+
+    if (targetSession.status === "CERRADA") {
+      return NextResponse.json(
+        { error: "La jornada seleccionada ya está cerrada. No se pueden registrar más operaciones en una caja cerrada." },
+        { status: 409 }
+      );
+    }
+
+    const activeSessionId = targetSession.id;
+    const numFee = fee !== undefined ? parseInt(String(fee)) : 0;
+    const numReceived = receivedAmount ? parseInt(String(receivedAmount)) : undefined;
+    const numChange = changeAmount ? parseInt(String(changeAmount)) : undefined;
+
+    // Calculate net cash flow
+    const netCashFlow = calculateNetCashFlow(
+      type as "INGRESO" | "EGRESO",
+      numAmount,
+      numFee,
+      numReceived,
+      numChange
+    );
+
+    // Process voucher image data if provided
     const qr = voucherData?.qrData;
     const ocr = voucherData?.ocrData;
     const scannedImage: string | undefined = voucherData?.scannedImage;
 
-    // If image is a base64 data URL, save it directly
     let imageUrl: string | undefined = undefined;
     let imageMimeType: string | undefined = undefined;
     let imageSize: number | undefined = undefined;
@@ -162,55 +142,83 @@ export async function POST(req: NextRequest) {
       imageSize = Math.round((base64Data.length * 3) / 4);
     }
 
-    await prisma.voucher.create({
-      data: {
-        operationId: operation.id,
-        status: "REGISTRADO",
-        qrRaw: qr?.raw || undefined,
-        qrOperationNum: qr?.operationNumber || operationNumber || voucherNumber || undefined,
-        qrReference: qr?.reference || reference || undefined,
-        qrTransactionId: qr?.transactionId || undefined,
-        qrAmount: qr?.amount ? parseInt(String(qr.amount)) : numAmount,
-        qrDate: qr?.date || undefined,
-        qrTime: qr?.time || undefined,
-        qrType: qr?.type || type,
-        qrStatus: qr?.status || undefined,
-        qrEntity: qr?.entity || undefined,
-        qrCommerce: qr?.commerce || undefined,
-        qrAuthCode: qr?.authCode || undefined,
-        qrScanned: !!qr,
-        qrScannedAt: qr ? new Date() : undefined,
-        ocrText: ocr?.text || undefined,
-        ocrAmount: ocr?.amount ? parseInt(String(ocr.amount)) : numAmount,
-        ocrDate: ocr?.date || undefined,
-        ocrTime: ocr?.time || undefined,
-        ocrReference: ocr?.reference || reference || undefined,
-        ocrOperationNum: ocr?.operationNumber || ocr?.operationNum || operationNumber || voucherNumber || undefined,
-        ocrStatus: ocr?.status || undefined,
-        ocrEntity: ocr?.entity || undefined,
-        ocrCompleted: !!ocr?.text || !!scannedImage,
-        ocrCompletedAt: ocr?.text || scannedImage ? new Date() : undefined,
-        // Save the captured image
-        imageUrl: imageUrl || undefined,
-        imageMimeType: imageMimeType || undefined,
-        imageSize: imageSize || undefined,
-        imageSavedAt: imageUrl ? new Date() : undefined,
-        scannedAt: new Date(),
-      },
+    // Atomic transaction for Operation + Voucher
+    const createdOperation = await prisma.$transaction(async (tx) => {
+      const op = await tx.operation.create({
+        data: {
+          sessionId: activeSessionId,
+          categoryId: categoryId || undefined,
+          userId,
+          type,
+          amount: numAmount,
+          fee: numFee,
+          receivedAmount: numReceived,
+          changeAmount: numChange,
+          netCashFlow,
+          description,
+          reference,
+          voucherNumber,
+          operationNumber,
+          status: opStatus || "COMPLETADA",
+        },
+        include: {
+          category: true,
+          user: { select: { id: true, name: true } },
+          voucher: true,
+        },
+      });
+
+      await tx.voucher.create({
+        data: {
+          operationId: op.id,
+          status: "REGISTRADO",
+          qrRaw: qr?.raw || undefined,
+          qrOperationNum: qr?.operationNumber || operationNumber || voucherNumber || undefined,
+          qrReference: qr?.reference || reference || undefined,
+          qrTransactionId: qr?.transactionId || undefined,
+          qrAmount: qr?.amount ? parseInt(String(qr.amount)) : numAmount,
+          qrDate: qr?.date || undefined,
+          qrTime: qr?.time || undefined,
+          qrType: qr?.type || type,
+          qrStatus: qr?.status || undefined,
+          qrEntity: qr?.entity || undefined,
+          qrCommerce: qr?.commerce || undefined,
+          qrAuthCode: qr?.authCode || undefined,
+          qrScanned: !!qr,
+          qrScannedAt: qr ? new Date() : undefined,
+          ocrText: ocr?.text || undefined,
+          ocrAmount: ocr?.amount ? parseInt(String(ocr.amount)) : numAmount,
+          ocrDate: ocr?.date || undefined,
+          ocrTime: ocr?.time || undefined,
+          ocrReference: ocr?.reference || reference || undefined,
+          ocrOperationNum: ocr?.operationNumber || ocr?.operationNum || operationNumber || voucherNumber || undefined,
+          ocrStatus: ocr?.status || undefined,
+          ocrEntity: ocr?.entity || undefined,
+          ocrCompleted: !!ocr?.text || !!scannedImage,
+          ocrCompletedAt: ocr?.text || scannedImage ? new Date() : undefined,
+          imageUrl: imageUrl || undefined,
+          imageMimeType: imageMimeType || undefined,
+          imageSize: imageSize || undefined,
+          imageSavedAt: imageUrl ? new Date() : undefined,
+          scannedAt: new Date(),
+        },
+      });
+
+      return op;
     });
-  } catch (e) {
-    console.warn("Could not create attached voucher:", e);
+
+    await createAuditLog({
+      userId,
+      userName: session.user.name || "",
+      action: "CREATE",
+      entity: "Operation",
+      entityId: createdOperation.id,
+      newValue: { type, amount: numAmount, receivedAmount: numReceived, changeAmount: numChange, netCashFlow },
+    });
+
+    return NextResponse.json({ operation: createdOperation }, { status: 201 });
+  } catch (error) {
+    console.error("Error in POST /api/operations:", error);
+    return NextResponse.json({ error: "Error al registrar la operación en caja" }, { status: 500 });
   }
-
-
-  await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "",
-    action: "CREATE",
-    entity: "Operation",
-    entityId: operation.id,
-    newValue: { type, amount: numAmount, receivedAmount: numReceived, changeAmount: numChange, netCashFlow },
-  });
-
-  return NextResponse.json({ operation }, { status: 201 });
 }

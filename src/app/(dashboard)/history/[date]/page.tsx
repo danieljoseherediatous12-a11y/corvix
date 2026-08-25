@@ -848,7 +848,7 @@ export default function HistoryDetailPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Cajero / Operador</span>
-            <span className="font-bold text-slate-900 text-sm">{closing.user?.name || 'Daniel'}</span>
+            <span className="font-bold text-slate-900 text-sm">{closing.user?.name || 'Operador'}</span>
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Estado Cuadre</span>
@@ -1012,7 +1012,7 @@ export default function HistoryDetailPage() {
             <div className="text-center">
               <div className="border-b border-slate-400 pb-12" />
               <p className="font-black text-xs text-slate-900 mt-2">Cajero / Operador Responsable</p>
-              <p className="text-[10px] text-slate-500 font-mono">Nombre: {closing.user?.name || 'Daniel'}</p>
+              <p className="text-[10px] text-slate-500 font-mono">Nombre: {closing.user?.name || 'Operador'}</p>
             </div>
             <div className="text-center">
               <div className="border-b border-slate-400 pb-12" />

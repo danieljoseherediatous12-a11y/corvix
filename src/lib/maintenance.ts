@@ -50,44 +50,46 @@ export async function purgeOldHistoryData(force: boolean = false): Promise<{ pur
     });
     const operationIds = oldOperations.map((o) => o.id);
 
-    // 3. Delete in referential order
+    // 3. Delete in referential order inside atomic transaction
     const oldCashCounts = await prisma.cashCount.findMany({
       where: { sessionId: { in: sessionIds } },
       select: { id: true },
     });
     const cashCountIds = oldCashCounts.map((c) => c.id);
 
-    if (cashCountIds.length > 0) {
-      await prisma.cashCountDetail.deleteMany({
-        where: { cashCountId: { in: cashCountIds } },
-      }).catch(() => {});
+    const deletedSessions = await prisma.$transaction(async (tx) => {
+      if (cashCountIds.length > 0) {
+        await tx.cashCountDetail.deleteMany({
+          where: { cashCountId: { in: cashCountIds } },
+        });
+        await tx.cashCount.deleteMany({
+          where: { id: { in: cashCountIds } },
+        });
+      }
 
-      await prisma.cashCount.deleteMany({
-        where: { id: { in: cashCountIds } },
-      }).catch(() => {});
-    }
+      if (operationIds.length > 0) {
+        await tx.voucher.deleteMany({
+          where: { operationId: { in: operationIds } },
+        });
+        await tx.operation.deleteMany({
+          where: { id: { in: operationIds } },
+        });
+      }
 
-    if (operationIds.length > 0) {
-      await prisma.voucher.deleteMany({
-        where: { operationId: { in: operationIds } },
-      }).catch(() => {});
+      await tx.dailyClosing.deleteMany({
+        where: { sessionId: { in: sessionIds } },
+      });
 
-      await prisma.operation.deleteMany({
-        where: { id: { in: operationIds } },
-      }).catch(() => {});
-    }
+      const res = await tx.cashSession.deleteMany({
+        where: { id: { in: sessionIds } },
+      });
 
-    await prisma.dailyClosing.deleteMany({
-      where: { sessionId: { in: sessionIds } },
-    }).catch(() => {});
+      await tx.auditLog.deleteMany({
+        where: { createdAt: { lt: cutoffTimestamp } },
+      });
 
-    const deletedSessions = await prisma.cashSession.deleteMany({
-      where: { id: { in: sessionIds } },
+      return res;
     });
-
-    await prisma.auditLog.deleteMany({
-      where: { createdAt: { lt: cutoffTimestamp } },
-    }).catch(() => {});
 
     console.log("[Auto-Purge 30d] Removed " + deletedSessions.count + " closed sessions older than " + cutoffDateStr);
     return { purgedCount: deletedSessions.count, cutoffDate: cutoffDateStr };

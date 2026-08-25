@@ -441,7 +441,7 @@ export default function OperationsPage() {
             </div>
 
             <div className="pt-2 flex gap-2">
-              {(userRole === 'DUENO' || userRole === 'ADMIN') && selectedOp.status !== 'CANCELADA' && (
+              {['DUENO', 'DUEÑO', 'ADMIN'].includes(String(userRole || '').toUpperCase()) && selectedOp.status !== 'CANCELADA' && (
                 <button
                   onClick={() => handleCancelOp(selectedOp.id)}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 py-3 rounded-xl font-bold text-xs transition cursor-pointer"

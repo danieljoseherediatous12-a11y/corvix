@@ -40,7 +40,7 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
 
   const userRole = (session?.user as { role?: string })?.role;
-  const isAuthorized = userRole === 'DUENO' || userRole === 'ADMIN';
+  const isAuthorized = ['DUENO', 'DUEÑO', 'ADMIN'].includes(String(userRole || '').toUpperCase());
 
   useEffect(() => {
     fetch('/api/settings')

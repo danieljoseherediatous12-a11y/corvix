@@ -260,12 +260,15 @@ export async function GET(req: NextRequest) {
 // POST /api/closings - Create daily closing
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const userRole = (session.user as { role?: string }).role || "";
-  if (!["DUENO", "ADMIN", "OPERADOR"].includes(userRole)) {
+  const rawRole = (session.user as { role?: string }).role || "";
+  const isAuthorized = ["DUENO", "DUEÑO", "ADMIN", "OPERADOR"].includes(rawRole.toUpperCase());
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
+
+  const userId = session.user.id;
 
   const body = await req.json();
   const { sessionId, countedCash, notes } = body;
@@ -289,75 +292,76 @@ export async function POST(req: NextRequest) {
   if (cashSession.closing) {
     return NextResponse.json({ error: "Esta jornada ya fue cerrada" }, { status: 409 });
   }
+  try {
+    const activeOps = cashSession.operations.filter((op) => op.status !== "CANCELADA");
+    const totalIncome = calculateTotalIncome(activeOps);
+    const totalExpense = calculateTotalExpense(activeOps);
+    const totalFees = calculateTotalFees(activeOps);
+    const expectedCash = calculateExpectedCash(cashSession.initialCash, activeOps);
+    const { difference, status } = calculateDifference(parseInt(String(countedCash)), expectedCash);
 
-  const activeOps = cashSession.operations.filter((op) => op.status !== "CANCELADA");
-  const totalIncome = calculateTotalIncome(activeOps);
-  const totalExpense = calculateTotalExpense(activeOps);
-  const totalFees = calculateTotalFees(activeOps);
-  const expectedCash = calculateExpectedCash(cashSession.initialCash, activeOps);
-  const { difference, status } = calculateDifference(parseInt(String(countedCash)), expectedCash);
+    const voucherStats = await prisma.voucher.findMany({
+      where: {
+        operationId: { in: activeOps.map((op) => op.id) },
+      },
+      select: { status: true },
+    });
 
-  const voucherStats = await prisma.voucher.findMany({
-    where: {
-      operationId: { in: activeOps.map((op) => op.id) },
-    },
-    select: { status: true },
-  });
+    const vouchersCount = voucherStats.length;
+    const pendingVouchers = voucherStats.filter((v) => v.status === "PENDIENTE" || v.status === "FALTA").length;
+    const operationsNoVoucher = activeOps.length - vouchersCount;
 
-  const vouchersCount = voucherStats.length;
-  const pendingVouchers = voucherStats.filter((v) => v.status === "PENDIENTE" || v.status === "FALTA").length;
-  const operationsNoVoucher = activeOps.length - vouchersCount;
+    // Atomic transaction for DailyClosing creation + Session status update
+    const closing = await prisma.$transaction(async (tx) => {
+      const createdClosing = await tx.dailyClosing.create({
+        data: {
+          sessionId,
+          userId,
+          date: cashSession.date,
+          initialCash: cashSession.initialCash,
+          totalIncome,
+          totalExpense,
+          totalFees,
+          expectedCash,
+          countedCash: parseInt(String(countedCash)),
+          difference,
+          status,
+          operationsCount: activeOps.length,
+          vouchersCount,
+          pendingVouchers,
+          operationsNoVoucher,
+          notes,
+        },
+        include: {
+          user: { select: { id: true, name: true } },
+          session: true,
+        },
+      });
 
-  // Create closing
-  const closing = await prisma.dailyClosing.create({
-    data: {
-      sessionId,
-      userId: session.user.id!,
-      date: cashSession.date,
-      initialCash: cashSession.initialCash,
-      totalIncome,
-      totalExpense,
-      totalFees,
-      expectedCash,
-      countedCash: parseInt(String(countedCash)),
-      difference,
-      status,
-      operationsCount: activeOps.length,
-      vouchersCount,
-      pendingVouchers,
-      operationsNoVoucher,
-      notes,
-    },
-    include: {
-      user: { select: { id: true, name: true } },
-      session: true,
-    },
-  });
+      await tx.cashSession.update({
+        where: { id: sessionId },
+        data: {
+          status: "CERRADA",
+          closedAt: new Date(),
+          closedById: userId,
+        },
+      });
 
-  // Close the session
-  await prisma.cashSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "CERRADA",
-      closedAt: new Date(),
-      closedById: session.user.id,
-    },
-  });
+      return createdClosing;
+    });
 
-  await createAuditLog({
-    userId: session.user.id,
-    userName: session.user.name || "",
-    action: "DAILY_CLOSE",
-    entity: "DailyClosing",
-    entityId: closing.id,
-    newValue: {
-      date: cashSession.date,
-      expectedCash,
-      countedCash,
-      difference,
-      status,
-    },
-  });
+    await createAuditLog({
+      userId,
+      userName: session.user.name || "",
+      action: "DAILY_CLOSE",
+      entity: "DailyClosing",
+      entityId: closing.id,
+      newValue: { difference, status, countedCash: parseInt(String(countedCash)), expectedCash },
+    });
 
-  return NextResponse.json({ closing }, { status: 201 });
+    return NextResponse.json({ closing }, { status: 201 });
+  } catch (error) {
+    console.error("Error in POST /api/closings:", error);
+    return NextResponse.json({ error: "Error al realizar el cierre de caja" }, { status: 500 });
+  }
 }
