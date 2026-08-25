@@ -44,31 +44,31 @@ export function CorvixLogo({ size = 44, className = '' }: CorvixLogoProps) {
         {/* Top Dark Vault Wing */}
         <path
           d="M 256 80 L 380 152 L 380 220 L 256 148 L 132 220 L 132 152 Z"
-          fill="url(#corv_dark)"
+          fill="#1e293b"
         />
 
         {/* Left Emerald Facet */}
         <path
           d="M 120 168 L 244 240 L 244 360 L 120 288 Z"
-          fill="url(#corv_g1)"
+          fill="#10b981"
         />
 
         {/* Right Obsidian Facet */}
         <path
           d="M 392 168 L 392 288 L 268 360 L 268 240 Z"
-          fill="#1e293b"
+          fill="#0f172a"
         />
 
         {/* Bottom Emerald Wing */}
         <path
           d="M 256 432 L 132 360 L 132 292 L 256 364 L 380 292 L 380 360 Z"
-          fill="url(#corv_g2)"
+          fill="#059669"
         />
 
         {/* Center Precision Diamond Core */}
         <polygon
           points="256,204 316,256 256,308 196,256"
-          fill="#10b981"
+          fill="#34d399"
         />
 
         {/* Diamond Sparkle Star */}
