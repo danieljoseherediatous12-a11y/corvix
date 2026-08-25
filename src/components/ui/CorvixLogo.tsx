@@ -7,14 +7,15 @@ interface CorvixLogoProps {
 
 export function CorvixLogo({ size = 44, className = '' }: CorvixLogoProps) {
   const dimension = typeof size === 'number' ? `${size}px` : size;
+  const numSize = typeof size === 'number' ? size : 44;
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="115 75 282 360"
-      width={dimension}
-      height={dimension}
-      className={`shrink-0 ${className}`}
+    <img
+      src="/logo.png"
+      alt="CORVIX"
+      width={numSize}
+      height={numSize}
+      className={`shrink-0 object-contain ${className}`}
       style={{
         width: dimension,
         height: dimension,
@@ -22,61 +23,7 @@ export function CorvixLogo({ size = 44, className = '' }: CorvixLogoProps) {
         minHeight: dimension,
         display: 'inline-block',
       }}
-    >
-      <defs>
-        <linearGradient id="cvx_green1" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#10b981" />
-          <stop offset="100%" stopColor="#047857" />
-        </linearGradient>
-        <linearGradient id="cvx_green2" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#34d399" />
-          <stop offset="100%" stopColor="#059669" />
-        </linearGradient>
-        <linearGradient id="cvx_dark" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#334155" />
-          <stop offset="100%" stopColor="#0f172a" />
-        </linearGradient>
-      </defs>
-
-      <g>
-        {/* Top Dark Vault Wing */}
-        <path
-          d="M 256 80 L 380 152 L 380 220 L 256 148 L 132 220 L 132 152 Z"
-          fill="url(#cvx_dark)"
-        />
-
-        {/* Left Emerald Facet */}
-        <path
-          d="M 120 168 L 244 240 L 244 360 L 120 288 Z"
-          fill="url(#cvx_green1)"
-        />
-
-        {/* Right Dark Facet */}
-        <path
-          d="M 392 168 L 392 288 L 268 360 L 268 240 Z"
-          fill="#1e293b"
-        />
-
-        {/* Bottom Emerald Wing */}
-        <path
-          d="M 256 432 L 132 360 L 132 292 L 256 364 L 380 292 L 380 360 Z"
-          fill="url(#cvx_green2)"
-        />
-
-        {/* Center Precision Diamond Core */}
-        <polygon
-          points="256,204 316,256 256,308 196,256"
-          fill="#10b981"
-        />
-
-        {/* Diamond Sparkle Star */}
-        <polygon
-          points="256,226 290,256 256,286 222,256"
-          fill="#ffffff"
-          opacity="0.98"
-        />
-      </g>
-    </svg>
+    />
   );
 }
 
