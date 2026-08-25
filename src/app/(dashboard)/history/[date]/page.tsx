@@ -30,6 +30,8 @@ import {
   ImageIcon,
   ExternalLink,
   AlertCircle,
+  Maximize2,
+  Download,
 } from 'lucide-react';
 
 interface VoucherData {
@@ -126,6 +128,33 @@ export default function HistoryDetailPage() {
   const [filterType, setFilterType] = useState<'ALL' | 'INGRESO' | 'EGRESO' | 'WITH_VOUCHER'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState<{ op: OperationItem; voucher: VoucherData } | null>(null);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+
+  const openImageFullSize = (imageUrl: string) => {
+    try {
+      if (imageUrl.startsWith('data:')) {
+        const arr = imageUrl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const newWin = window.open(blobUrl, '_blank');
+        if (!newWin) {
+          setFullScreenImage(imageUrl);
+        }
+      } else {
+        window.open(imageUrl, '_blank');
+      }
+    } catch {
+      setFullScreenImage(imageUrl);
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/closings?date=${date}`)
@@ -685,24 +714,29 @@ export default function HistoryDetailPage() {
                       <ImageIcon size={14} className="text-emerald-600" />
                       Foto Original del Voucher
                     </h4>
-                    <a
-                      href={selectedVoucher.voucher.imageUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                    <button
+                      type="button"
+                      onClick={() => openImageFullSize(selectedVoucher.voucher.imageUrl!)}
+                      className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <ExternalLink size={12} />
+                      <Maximize2 size={12} />
                       Ver Tamaño Completo
-                    </a>
+                    </button>
                   </div>
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-72 flex items-center justify-center shadow-inner">
+                  <div
+                    onClick={() => setFullScreenImage(selectedVoucher.voucher.imageUrl!)}
+                    className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-72 flex items-center justify-center shadow-inner cursor-zoom-in group relative"
+                  >
                     <img
                       src={selectedVoucher.voucher.imageUrl}
                       alt="Foto original del voucher"
                       loading="lazy"
                       decoding="async"
-                      className="w-full h-full max-h-72 object-contain"
+                      className="w-full h-full max-h-72 object-contain group-hover:scale-105 transition duration-300"
                     />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white font-bold text-xs gap-1.5 backdrop-blur-[1px]">
+                      <Maximize2 size={16} /> Tocar para ampliar
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -802,6 +836,54 @@ export default function HistoryDetailPage() {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL SCREEN HIGH-RES LIGHTBOX MODAL */}
+      {fullScreenImage && (
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col items-center justify-between p-4 backdrop-blur-md animate-fade-in select-none">
+          {/* Header */}
+          <div className="w-full max-w-4xl flex items-center justify-between text-white pb-3 border-b border-white/10 shrink-0">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <ImageIcon size={18} className="text-emerald-400" />
+              <span>Comprobante en Alta Resolución</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = fullScreenImage;
+                  a.download = `comprobante-${date || 'voucher'}.jpg`;
+                  a.click();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Download size={14} /> Descargar
+              </button>
+              <button
+                type="button"
+                onClick={() => setFullScreenImage(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-rose-600 text-white transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Image Canvas */}
+          <div className="relative max-w-4xl max-h-[82vh] w-full flex-1 flex items-center justify-center p-2 overflow-auto">
+            <img
+              src={fullScreenImage}
+              alt="Comprobante en tamaño completo"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+          </div>
+
+          {/* Footer Note */}
+          <div className="text-slate-400 text-[11px] font-mono shrink-0 pt-2">
+            Presiona Cerrar o Esc para volver al resumen
           </div>
         </div>
       )}

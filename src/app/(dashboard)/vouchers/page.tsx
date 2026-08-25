@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react';
 import { formatCOP, formatDateTime } from '@/lib/calculations';
 import {
   FileText, Search, Camera, QrCode, CheckCircle2, AlertTriangle,
-  Clock, Eye, Image as ImageIcon, Sparkles, Filter, Receipt, RefreshCw
+  Clock, Eye, Image as ImageIcon, Sparkles, Filter, Receipt, RefreshCw,
+  Maximize2, Download, X
 } from 'lucide-react';
 
 interface Voucher {
@@ -57,6 +58,33 @@ export default function VouchersPage() {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVoucher, setSelectedVoucher] = useState<Voucher | null>(null);
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+
+  const openImageFullSize = (imageUrl: string) => {
+    try {
+      if (imageUrl.startsWith('data:')) {
+        const arr = imageUrl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const newWin = window.open(blobUrl, '_blank');
+        if (!newWin) {
+          setFullScreenImage(imageUrl);
+        }
+      } else {
+        window.open(imageUrl, '_blank');
+      }
+    } catch {
+      setFullScreenImage(imageUrl);
+    }
+  };
 
   const fetchVouchers = async () => {
     setLoading(true);
@@ -208,18 +236,34 @@ export default function VouchersPage() {
             {/* Image Preview if available */}
             {selectedVoucher.imageUrl && (
               <div className="space-y-1.5 pt-2">
-                <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1.5">
-                  <ImageIcon size={14} className="text-emerald-600" />
-                  Foto / Captura del Voucher:
-                </span>
-                <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-64 flex items-center justify-center">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold text-[11px] flex items-center gap-1.5">
+                    <ImageIcon size={14} className="text-emerald-600" />
+                    Foto / Captura del Voucher:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openImageFullSize(selectedVoucher.imageUrl!)}
+                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Maximize2 size={12} />
+                    Ver Tamaño Completo
+                  </button>
+                </div>
+                <div
+                  onClick={() => setFullScreenImage(selectedVoucher.imageUrl!)}
+                  className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 max-h-64 flex items-center justify-center cursor-zoom-in group relative"
+                >
                   <img
                     src={selectedVoucher.imageUrl}
                     alt="Foto del comprobante"
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full max-h-64 object-contain"
+                    className="w-full h-full max-h-64 object-contain group-hover:scale-105 transition duration-300"
                   />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white font-bold text-xs gap-1.5 backdrop-blur-[1px]">
+                    <Maximize2 size={16} /> Tocar para ampliar
+                  </div>
                 </div>
               </div>
             )}
@@ -249,6 +293,51 @@ export default function VouchersPage() {
             >
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* FULL SCREEN HIGH-RES LIGHTBOX MODAL */}
+      {fullScreenImage && (
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col items-center justify-between p-4 backdrop-blur-md animate-fade-in select-none">
+          <div className="w-full max-w-4xl flex items-center justify-between text-white pb-3 border-b border-white/10 shrink-0">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <ImageIcon size={18} className="text-emerald-400" />
+              <span>Comprobante en Alta Resolución</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = fullScreenImage;
+                  a.download = `voucher-${Date.now()}.jpg`;
+                  a.click();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Download size={14} /> Descargar
+              </button>
+              <button
+                type="button"
+                onClick={() => setFullScreenImage(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-rose-600 text-white transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          <div className="relative max-w-4xl max-h-[82vh] w-full flex-1 flex items-center justify-center p-2 overflow-auto">
+            <img
+              src={fullScreenImage}
+              alt="Comprobante en tamaño completo"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+          </div>
+
+          <div className="text-slate-400 text-[11px] font-mono shrink-0 pt-2">
+            Presiona Cerrar para volver
           </div>
         </div>
       )}
